@@ -12,6 +12,12 @@
   </head>
   <body>
     <div id="app" class="game-container">
+      <!-- Floating Toast / Feedback Banner (outside playfield) -->
+      <div id="feedback-banner" class="feedback-banner hidden" role="status" aria-live="polite">
+        <span id="feedback-title" class="feedback-title">RESONANT FUSION</span>
+        <span id="feedback-desc" class="feedback-desc">+500 LOVE</span>
+      </div>
+
       <!-- Top Casual Header Bar -->
       <header class="telemetry-bar">
         <div class="brand-group">
@@ -105,11 +111,6 @@
       <!-- Main Chamber Viewport -->
       <main class="chamber-viewport">
         <canvas id="game-canvas"></canvas>
-
-        <div id="feedback-banner" class="feedback-banner hidden">
-          <span id="feedback-title" class="feedback-title">RESONANT FUSION</span>
-          <span id="feedback-desc" class="feedback-desc">+500 ENERGY</span>
-        </div>
       </main>
 
       <!-- Quick Action / Touch Deck Bar -->
