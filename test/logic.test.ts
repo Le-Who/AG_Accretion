@@ -111,7 +111,7 @@ describe('GameState & Scoring Logic', () => {
   it('charges Flux Pulse to 100% and enables signature pulse', () => {
     expect(state.canTriggerFluxPulse()).toBe(false);
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 10; i++) {
       state.handleMergeEvent({
         entityA: { id: 'a', bodyId: 1, tier: 1, polarity: 1, radius: 15, createdAt: 0, isMerging: false, spawnTime: 0, renderRotation: 0 },
         entityB: { id: 'b', bodyId: 2, tier: 1, polarity: -1, radius: 15, createdAt: 0, isMerging: false, spawnTime: 0, renderRotation: 0 },

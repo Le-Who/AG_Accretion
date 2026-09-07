@@ -122,6 +122,14 @@ class AccretionGame {
     this.particles = new ParticleSystem();
 
     this.simulation = new PhysicsSimulation({
+      onAscension: () => {
+        this.gameState.handleAscension();
+        const multiplier = this.gameState.getRunMultiplier();
+        this.particles.emitHearts(GAME_CONFIG.CENTER_X, GAME_CONFIG.CENTER_Y);
+        this.particles.emitFluxPulseWave(GAME_CONFIG.CENTER_X, GAME_CONFIG.CENTER_Y);
+        this.soundEngine.playLevelUp();
+        this.showFeedbackBanner('QUEEN ASCENDED', `${multiplier.toFixed(1)}× score for this run`);
+      },
       onMerge: (event: MergeEvent) => this.handleMerge(event),
       onCentralCoreLevelUp: (event: CentralCoreLevelUpEvent) => this.handleCentralCoreLevelUp(event),
       onCollisionImpact: (intensity, contact) => {
@@ -226,6 +234,7 @@ class AccretionGame {
   }
 
   private launchCore(): void {
+    if (this.simulation.isBloomActive()) return;
     if (!this.gameState.canLaunch()) return;
 
     const tier = this.gameState.currentTier;
@@ -243,7 +252,7 @@ class AccretionGame {
     if (!this.gameState.canTriggerFluxPulse()) return;
     const pairCount = this.simulation.startPairBloom();
     if (!pairCount) {
-      this.showFeedbackBanner('NO PAIRS YET', 'Charge saved — collect matching slimes');
+      this.showFeedbackBanner('BLOOM SAVED', 'No safe matching pair yet — charge kept');
       return;
     }
 
@@ -323,6 +332,8 @@ class AccretionGame {
     this.scoreEl.textContent = score.toLocaleString();
     this.bestScoreEl.textContent = best.toLocaleString();
     this.comboEl.textContent = `${combo.toFixed(1)}x`;
+    const runMultiplier = this.gameState?.getRunMultiplier() || 1;
+    document.getElementById('run-multiplier')!.textContent = `${runMultiplier.toFixed(1)}×`;
 
     if (combo > 1.0) {
       this.comboCard.style.borderColor = 'var(--color-amber)';
@@ -332,8 +343,10 @@ class AccretionGame {
   }
 
   private updateFluxUI(charge: number, isReady: boolean): void {
+    this.btnFluxPulse.style.setProperty('--bloom-charge', `${Math.max(0, Math.min(100, charge))}%`);
+    this.btnFluxPulse.setAttribute('aria-label', `Pair Bloom, ${Math.floor(charge)} percent charged`);
     this.fluxBtnLabel.textContent = isReady ? 'PAIR BLOOM' : `BLOOM ${Math.floor(charge)}%`;
-    this.btnFluxPulse.disabled = !isReady;
+    this.btnFluxPulse.disabled = !isReady || !!this.simulation?.isBloomActive();
 
     if (isReady) {
       this.btnFluxPulse.classList.add('ready');
@@ -430,8 +443,9 @@ class AccretionGame {
     this.lastTime = time;
 
     if (this.gameState.getStatus() !== 'GAMEOVER' && this.briefingModal.classList.contains('hidden') && !document.querySelector('.hud-dropdown[open]')) {
+      const resolvingBloom = this.simulation.isBloomActive();
       this.simulation.step(dt);
-      this.gameState.update(dt);
+      this.gameState.update(dt, resolvingBloom);
       this.particles.update(dt);
     }
     this.updateFluxUI(this.gameState.getFluxCharge(), this.gameState.canTriggerFluxPulse());

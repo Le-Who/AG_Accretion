@@ -23,6 +23,13 @@ export interface GameStats {
 }
 
 export class GameState {
+  private runMultiplier = 1;
+  public getRunMultiplier(): number { return this.runMultiplier; }
+  public handleAscension(): void {
+    if (this.status === 'GAMEOVER') return;
+    this.runMultiplier += .5;
+    this.listener.onScoreChange(this.score, this.bestScore, this.comboMultiplier);
+  }
   private status: GameStatus = 'READY';
   private rng: DeterministicRNG;
   private listener: GameStateListener;
@@ -139,7 +146,7 @@ export class GameState {
       this.peakCombo = this.comboMultiplier;
     }
 
-    const scoredPoints = Math.round(event.scoreGained * this.comboMultiplier);
+    const scoredPoints = Math.round(event.scoreGained * this.comboMultiplier * this.runMultiplier);
     this.score += scoredPoints;
 
     if (this.score > this.bestScore) {
@@ -149,7 +156,7 @@ export class GameState {
       }
     }
 
-    const fluxDelta = event.fusionType === 'RESONANT'
+    const fluxDelta = event.pairBloom ? 0 : event.fusionType === 'RESONANT'
       ? GAME_CONFIG.FLUX_CHARGE_RESONANT_MERGE
       : GAME_CONFIG.FLUX_CHARGE_FORCED_MERGE;
 
@@ -183,7 +190,7 @@ export class GameState {
       this.peakCombo = this.comboMultiplier;
     }
 
-    const scoredPoints = Math.round(event.scoreGained * this.comboMultiplier);
+    const scoredPoints = Math.round(event.scoreGained * this.comboMultiplier * this.runMultiplier);
     this.score += scoredPoints;
 
     if (this.score > this.bestScore) {
@@ -194,7 +201,7 @@ export class GameState {
     }
 
     // Supercharge flux on nucleus evolution
-    this.fluxCharge = Math.min(GAME_CONFIG.FLUX_MAX_CHARGE, this.fluxCharge + 40);
+    this.fluxCharge = Math.min(GAME_CONFIG.FLUX_MAX_CHARGE, this.fluxCharge + (event.pairBloom ? 0 : GAME_CONFIG.FLUX_CHARGE_EVOLUTION));
 
     if (event.fusionType === 'RESONANT') {
       this.resonantMergeCount++;
@@ -226,7 +233,10 @@ export class GameState {
     }
   }
 
-  public update(dtMs: number): void {
+  public update(dtMs: number, resolvingBloom = false): void {
+    // Pair Bloom holds the board atomically; do not charge danger time while it cannot settle.
+    // Preserve the hazard and remaining grace exactly, then resume them with physics.
+    if (resolvingBloom) return;
     if (this.status === 'GAMEOVER' || this.status === 'PAUSED') return;
 
     if (this.launchCooldownTimer > 0) {
@@ -280,6 +290,7 @@ export class GameState {
   }
 
   public reset(seed?: number): void {
+    this.runMultiplier = 1;
     this.status = 'READY';
     this.score = 0;
     this.comboMultiplier = 1.0;

@@ -49,7 +49,8 @@ describe('Pair Bloom', () => {
     sim.spawnCore(440, 440, 11, -1);
     expect(sim.startPairBloom()).toBe(1);
     expect(sim.startPairBloom()).toBe(0);
-    for (let i = 0; i < 48; i++) sim.step(1000 / 60);
+    // Check the reserved landing at resolution, before ordinary gravity resumes.
+    for (let i = 0; i < 39; i++) sim.step(1000 / 60);
     expect(merges).toHaveLength(1);
     expect(merges[0].resultTier).toBe(3);
     expect(merges[0].pairBloom).toBe(true);

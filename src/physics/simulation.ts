@@ -5,6 +5,7 @@ import { AccretionEntity, CentralCoreLevelUpEvent, MergeEvent, Polarity } from '
 import { MagneticFieldSystem } from './magneticField.js';
 
 export interface SimulationCallbacks {
+  onAscension?: () => void;
   onMerge: (event: MergeEvent) => void;
   onCentralCoreLevelUp: (event: CentralCoreLevelUpEvent) => void;
   onCollisionImpact: (
@@ -15,6 +16,7 @@ export interface SimulationCallbacks {
 }
 
 interface PendingMerge {
+  ascension?: boolean;
   pairBloom?: boolean;
   entityA: AccretionEntity;
   entityB: AccretionEntity;
@@ -221,6 +223,7 @@ export class PhysicsSimulation {
   }
 
   public launchCoreInward(angleRad: number, tierNumber: number, polarity: Polarity): AccretionEntity {
+    for (const e of this.entities.values()) e.bloomOrigin = false;
     const cx = GAME_CONFIG.CENTER_X;
     const cy = GAME_CONFIG.CENTER_Y;
     const launchDist = GAME_CONFIG.LAUNCH_ORBIT_RADIUS;
@@ -254,11 +257,41 @@ export class PhysicsSimulation {
     for (const e of this.entities.values()) {
       if (!e.isCentralCore && !e.isMerging && e.tier < MAX_TIER) counts.set(e.tier, (counts.get(e.tier) || 0) + 1);
     }
-    return [...counts.values()].reduce((sum, n) => sum + Math.floor(n / 2), 0);
+    const titan = this.centralEntity.tier === MAX_TIER && [...this.entities.values()].some(e => !e.isCentralCore && !e.isMerging && e.tier === MAX_TIER);
+    return [...counts.values()].reduce((sum, n) => sum + Math.floor(n / 2), 0) + (titan ? 1 : 0);
+  }
+
+  public isBloomActive(): boolean { return this.bloomPairs.length > 0; }
+
+  private safeBloomTarget(radius: number, preferred: Matter.Vector, excluded: Set<number>): Matter.Vector | null {
+    const min = this.centralEntity.radius + radius + 6;
+    const max = GAME_CONFIG.CONTAINMENT_PERIMETER_RADIUS - radius - 12;
+    const angle = Math.atan2(preferred.y - GAME_CONFIG.CENTER_Y, preferred.x - GAME_CONFIG.CENTER_X);
+    const obstacles = [...this.entities.values()].filter(e => !excluded.has(e.bodyId) && !e.isCentralCore && !e.isMerging);
+    const valid = (p: Matter.Vector) => obstacles.every(e => {
+      const b = this.bodies.get(e.bodyId)!;
+      return Math.hypot(p.x - b.position.x, p.y - b.position.y) >= radius + e.radius + 4;
+    }) && this.bloomPairs.every(pair => pair.merge.ascension || Math.hypot(p.x - pair.target.x, p.y - pair.target.y) >= radius + CORE_TIERS[pair.merge.entityA.tier + 1].radius + 4);
+    for (let r = min; r <= max; r += 6) {
+      for (let i = 0; i < 96; i++) {
+        const a = angle + Math.ceil(i / 2) * (i % 2 ? 1 : -1) * Math.PI / 48;
+        const p = { x: GAME_CONFIG.CENTER_X + Math.cos(a) * r, y: GAME_CONFIG.CENTER_Y + Math.sin(a) * r };
+        if (valid(p)) return p;
+      }
+    }
+    return null;
   }
 
   public startPairBloom(): number {
     if (this.bloomPairs.length) return 0;
+    if (this.centralEntity.tier === MAX_TIER) {
+      const titan = [...this.entities.values()].find(e => !e.isCentralCore && !e.isMerging && e.tier === MAX_TIER);
+      if (titan) {
+        const body = this.bodies.get(titan.bodyId)!;
+        titan.isMerging = true;
+        this.bloomPairs.push({merge:{entityA:titan,entityB:this.centralEntity,bodyA:body,bodyB:this.centralNucleus,pairBloom:true,ascension:true},fromA:{...body.position},fromB:{...this.centralNucleus.position},target:{...this.centralNucleus.position},elapsed:0});
+      }
+    }
     const candidates = [...this.entities.values()].filter(e => !e.isCentralCore && !e.isMerging && e.tier < MAX_TIER);
     for (const a of candidates) {
       if (a.isMerging) continue;
@@ -267,16 +300,13 @@ export class PhysicsSimulation {
         .sort((u, v) => Matter.Vector.magnitudeSquared(Matter.Vector.sub(this.bodies.get(u.bodyId)!.position, bodyA.position)) - Matter.Vector.magnitudeSquared(Matter.Vector.sub(this.bodies.get(v.bodyId)!.position, bodyA.position)))[0];
       if (!b) continue;
       const bodyB = this.bodies.get(b.bodyId)!;
+      const target = this.safeBloomTarget(CORE_TIERS[a.tier + 1].radius, {x:(bodyA.position.x + bodyB.position.x)/2,y:(bodyA.position.y + bodyB.position.y)/2}, new Set([a.bodyId,b.bodyId]));
+      if (!target) continue; // Leave this pair playable; retry on a later activation.
       a.isMerging = b.isMerging = true;
       bodyA.isSensor = bodyB.isSensor = true;
       Matter.Body.setStatic(bodyA, true);
       Matter.Body.setStatic(bodyB, true);
-      const mx = (bodyA.position.x + bodyB.position.x) / 2 - GAME_CONFIG.CENTER_X;
-      const my = (bodyA.position.y + bodyB.position.y) / 2 - GAME_CONFIG.CENTER_Y;
-      const angle = Math.hypot(mx, my) > 1 ? Math.atan2(my, mx) : Math.atan2(bodyA.position.y - GAME_CONFIG.CENTER_Y, bodyA.position.x - GAME_CONFIG.CENTER_X);
-      const r = CORE_TIERS[a.tier + 1].radius;
-      const distance = Math.max(this.centralEntity.radius + r + 6, Math.min(Math.hypot(mx, my), GAME_CONFIG.CONTAINMENT_PERIMETER_RADIUS - r - 12));
-      this.bloomPairs.push({ merge: { entityA: a, entityB: b, bodyA, bodyB, pairBloom: true }, fromA: { ...bodyA.position }, fromB: { ...bodyB.position }, target: { x: GAME_CONFIG.CENTER_X + Math.cos(angle) * distance, y: GAME_CONFIG.CENTER_Y + Math.sin(angle) * distance }, elapsed: 0 });
+      this.bloomPairs.push({ merge: { entityA: a, entityB: b, bodyA, bodyB, pairBloom: true }, fromA: { ...bodyA.position }, fromB: { ...bodyB.position }, target, elapsed: 0 });
     }
     return this.bloomPairs.length;
   }
@@ -284,7 +314,7 @@ export class PhysicsSimulation {
   private advancePairBloom(dt: number): void {
     this.bloomPairs = this.bloomPairs.filter(pair => {
       pair.elapsed += dt;
-      const t = Math.min(1, pair.elapsed / 650);
+      const t = Math.min(1, (pair.elapsed + 1e-6) / 650);
       const ease = t * t * (3 - 2 * t);
       for (const [body, from] of [[pair.merge.bodyA, pair.fromA], [pair.merge.bodyB, pair.fromB]] as const) {
         Matter.Body.setPosition(body, { x: from.x + (pair.target.x - from.x) * ease, y: from.y + (pair.target.y - from.y) * ease });
@@ -307,6 +337,14 @@ export class PhysicsSimulation {
         const pose = this.previousPoses.get(id);
         if (pose) { pose.x = body.position.x; pose.y = body.position.y; pose.angle = body.angle; }
         else this.previousPoses.set(id, { ...body.position, angle: body.angle });
+      }
+      if (this.isBloomActive()) {
+        // Atomic 650ms resolution: bystanders cannot drift into reserved landing sites.
+        this.advancePairBloom(fixedStep);
+        this.resolvePendingMerges();
+        this.accumulator -= fixedStep;
+        subSteps++;
+        continue;
       }
       // 1. Inward Central Gravity
       this.applyCentralGravity();
@@ -418,8 +456,10 @@ export class PhysicsSimulation {
       // Gently push surrounding bodies outward so they don't overlap with the newly expanded nucleus
       this.repelBodiesFromExpandedNucleus(cx, cy, newRadius);
 
-      // Shockwave
-      if (fusionType === 'RESONANT') {
+      // Bloom descendants remain visual-only until the next player launch.
+      if (consumedEntity.bloomOrigin) {
+        // No secondary shove from an automatic Queen evolution.
+      } else if (fusionType === 'RESONANT') {
         this.applyImplosionShockwave(cx, cy, 220);
       } else {
         this.applyExplosionShockwave(cx, cy, 100);
@@ -431,6 +471,7 @@ export class PhysicsSimulation {
       );
 
       this.callbacks.onCentralCoreLevelUp({
+        pairBloom: consumedEntity.bloomOrigin,
         previousTier,
         newTier,
         fusionType,
@@ -479,6 +520,13 @@ export class PhysicsSimulation {
       if (!this.entities.has(bodyA.id) || !this.entities.has(bodyB.id)) {
         continue;
       }
+      if (merge.ascension) {
+        Matter.World.remove(this.world, bodyA);
+        this.entities.delete(bodyA.id); this.bodies.delete(bodyA.id);
+        this.callbacks.onAscension?.();
+        continue;
+      }
+      merge.pairBloom ||= entityA.bloomOrigin || entityB.bloomOrigin;
 
       const midX = (bodyA.position.x + bodyB.position.x) / 2;
       const midY = (bodyA.position.y + bodyB.position.y) / 2;
@@ -501,12 +549,15 @@ export class PhysicsSimulation {
 
       const newEntity = this.spawnCore(midX, midY, nextTier, nextPolarity);
       newEntity.mergeBorn = true;
+      newEntity.bloomOrigin = merge.pairBloom;
       const newBody = this.bodies.get(newEntity.bodyId);
       if (newBody) {
         Matter.Body.setVelocity(newBody, { x: avgVx, y: avgVy });
       }
 
-      if (fusionType === 'RESONANT') {
+      if (merge.pairBloom) {
+        // Confetti is visual only; no kick into neighbouring stacks.
+      } else if (fusionType === 'RESONANT') {
         this.applyImplosionShockwave(midX, midY, 190);
       } else {
         this.applyExplosionShockwave(midX, midY, 80);

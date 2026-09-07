@@ -29,6 +29,7 @@ export interface CoreTierDefinition {
 }
 
 export interface AccretionEntity {
+  bloomOrigin?: boolean;
   mergeBorn?: boolean;
   id: string;
   bodyId: number;
@@ -56,6 +57,7 @@ export interface MergeEvent {
 }
 
 export interface CentralCoreLevelUpEvent {
+  pairBloom?: boolean;
   previousTier: number;
   newTier: number;
   fusionType: 'RESONANT' | 'FORCED';
