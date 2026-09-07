@@ -7,7 +7,7 @@ import { ParticleSystem } from './render/particleSystem.js';
 import { SoundEngine } from './audio/soundEngine.js';
 import { InputHandler } from './input/inputHandler.js';
 import { DebugHarness } from './debug/debugHarness.js';
-import { GameStatus, MergeEvent, Polarity } from './types.js';
+import { CentralCoreLevelUpEvent, GameStatus, MergeEvent, Polarity } from './types.js';
 
 class AccretionGame {
   // Subsystems
@@ -19,6 +19,7 @@ class AccretionGame {
   public inputHandler: InputHandler;
 
   // DOM Elements
+  private nucleusTierDisplay: HTMLElement;
   private scoreEl: HTMLElement;
   private bestScoreEl: HTMLElement;
   private comboEl: HTMLElement;
@@ -64,6 +65,7 @@ class AccretionGame {
 
   constructor() {
     // 1. Resolve DOM Elements
+    this.nucleusTierDisplay = document.getElementById('nucleus-tier-display')!;
     this.scoreEl = document.getElementById('score-display')!;
     this.bestScoreEl = document.getElementById('best-score-display')!;
     this.comboEl = document.getElementById('combo-display')!;
@@ -113,6 +115,7 @@ class AccretionGame {
 
     this.simulation = new PhysicsSimulation({
       onMerge: (event: MergeEvent) => this.handleMerge(event),
+      onCentralCoreLevelUp: (event: CentralCoreLevelUpEvent) => this.handleCentralCoreLevelUp(event),
       onCollisionImpact: (intensity: number) => this.soundEngine.playImpact(intensity),
       onHazardStateChange: (inHazard: boolean) => this.gameState.setHazardState(inHazard)
     });
@@ -122,6 +125,7 @@ class AccretionGame {
       onFluxChange: (charge, isReady) => this.updateFluxUI(charge, isReady),
       onIntegrityChange: (percent, isCritical) => this.updateIntegrityUI(percent, isCritical),
       onNextCoreChange: (ct, cp, nt, np) => this.updateNextCoreUI(ct, cp, nt, np),
+      onCentralCoreChange: (tier) => this.updateCentralCoreUI(tier),
       onStatusChange: (status) => this.updateStatusUI(status),
       onGameOver: (stats) => this.handleGameOver(stats)
     });
@@ -216,6 +220,31 @@ class AccretionGame {
     }
   }
 
+  /**
+   * High-impact handler when a matching tier core fuses into and upgrades the Central Nucleus
+   */
+  private handleCentralCoreLevelUp(event: CentralCoreLevelUpEvent): void {
+    this.gameState.handleCentralCoreLevelUp(event);
+
+    const tierDef = CORE_TIERS[event.newTier] || CORE_TIERS[1];
+    const particleColor = tierDef.colorBaseAlpha;
+
+    const cx = GAME_CONFIG.CENTER_X;
+    const cy = GAME_CONFIG.CENTER_Y;
+
+    this.particles.emitMerge(cx, cy, particleColor, true);
+    this.particles.emitFluxPulseWave(cx, cy);
+    this.soundEngine.playMerge(event.newTier, true, this.gameState.getScore());
+
+    const gainedText = `+${event.scoreGained} NUCLEUS EVOLVED!`;
+    this.particles.addFloatingText(cx, cy - 20, gainedText, '#fbbf24');
+
+    this.showFeedbackBanner(
+      `NUCLEUS EVOLVED: TIER ${event.newTier}`,
+      `${tierDef.name} (${tierDef.codename}) Anchored!`
+    );
+  }
+
   private showFeedbackBanner(title: string, desc: string): void {
     this.feedbackTitle.textContent = title;
     this.feedbackDesc.textContent = desc;
@@ -224,7 +253,14 @@ class AccretionGame {
     window.clearTimeout(this.feedbackTimeout);
     this.feedbackTimeout = window.setTimeout(() => {
       this.feedbackBanner.classList.add('hidden');
-    }, 1800);
+    }, 1900);
+  }
+
+  private updateCentralCoreUI(tier: number): void {
+    const tierDef = CORE_TIERS[tier] || CORE_TIERS[1];
+    if (this.nucleusTierDisplay) {
+      this.nucleusTierDisplay.textContent = `T${tier} ${tierDef.codename}`;
+    }
   }
 
   private updateScoreUI(score: number, best: number, combo: number): void {
@@ -290,7 +326,7 @@ class AccretionGame {
   private handleGameOver(stats: GameStats): void {
     this.finalScoreEl.textContent = stats.finalScore.toLocaleString();
     this.finalBestEl.textContent = stats.bestScore.toLocaleString();
-    this.finalTierEl.textContent = CORE_TIERS[stats.maxTier]?.name || `Tier ${stats.maxTier}`;
+    this.finalTierEl.textContent = CORE_TIERS[stats.centralCoreTier]?.name || `Tier ${stats.centralCoreTier}`;
     this.finalResonantEl.textContent = stats.resonantMerges.toString();
     this.finalMaxComboEl.textContent = `${stats.peakCombo.toFixed(1)}x`;
     this.finalFluxCountEl.textContent = stats.fluxInversions.toString();
@@ -344,7 +380,6 @@ class AccretionGame {
   }
 }
 
-// Maintain accurate mobile viewport height
 function updateViewportHeight(): void {
   const vh = window.innerHeight * 0.01;
   document.documentElement.style.setProperty('--vh', `${vh}px`);
@@ -352,7 +387,6 @@ function updateViewportHeight(): void {
 window.addEventListener('resize', updateViewportHeight);
 updateViewportHeight();
 
-// Boot game when DOM is ready
 window.addEventListener('DOMContentLoaded', () => {
   new AccretionGame();
 });

@@ -15,9 +15,10 @@ export interface GameDebugAPI {
     currentPolarity: number;
     nextTier: number;
     nextPolarity: number;
+    centralCoreTier: number;
     activeBodiesCount: number;
   };
-  getEntities: () => Array<{ id: string; tier: number; polarity: number; x: number; y: number }>;
+  getEntities: () => Array<{ id: string; tier: number; polarity: number; x: number; y: number; isCentral?: boolean }>;
   setScore: (score: number) => void;
   setFlux: (charge: number) => void;
   spawnTier: (tier: number, polarity: Polarity, x?: number, y?: number) => void;
@@ -60,6 +61,7 @@ export class DebugHarness {
           currentPolarity: gameState.currentPolarity,
           nextTier: gameState.nextTier,
           nextPolarity: gameState.nextPolarity,
+          centralCoreTier: gameState.centralCoreTier,
           activeBodiesCount: bodies.size
         };
       },
@@ -67,7 +69,7 @@ export class DebugHarness {
       getEntities: () => {
         const entities = simulation.getEntities();
         const bodies = simulation.getBodies();
-        const list: Array<{ id: string; tier: number; polarity: number; x: number; y: number }> = [];
+        const list: Array<{ id: string; tier: number; polarity: number; x: number; y: number; isCentral?: boolean }> = [];
 
         for (const [bodyId, entity] of entities.entries()) {
           const body = bodies.get(bodyId);
@@ -77,7 +79,8 @@ export class DebugHarness {
               tier: entity.tier,
               polarity: entity.polarity,
               x: body.position.x,
-              y: body.position.y
+              y: body.position.y,
+              isCentral: entity.isCentralCore
             });
           }
         }
@@ -146,6 +149,13 @@ export class DebugHarness {
         const cy = GAME_CONFIG.CENTER_Y;
 
         switch (scenarioName) {
+          case 'nucleus_levelup': {
+            // Spawn a core matching the Central Core's tier touching the nucleus
+            const central = simulation.getCentralEntity();
+            simulation.spawnCore(cx, cy - central.radius - 12, central.tier, -1);
+            return true;
+          }
+
           case 'basic_merge': {
             // Two Tier 1 cores touching next to the central core for instant merge
             simulation.spawnCore(cx - 14, cy - 55, 1, 1);

@@ -91,7 +91,7 @@ export class MagneticFieldSystem {
       const distToCenter = Math.sqrt(dxToCenter * dxToCenter + dyToCenter * dyToCenter);
 
       // Stop if reached the central core
-      if (distToCenter <= GAME_CONFIG.CENTRAL_CORE_RADIUS + tierRadius) {
+      if (distToCenter <= GAME_CONFIG.CENTRAL_NUCLEUS_BASE_RADIUS + tierRadius) {
         points.push({ x: simX, y: simY });
         break;
       }

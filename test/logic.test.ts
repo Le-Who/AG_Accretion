@@ -69,6 +69,7 @@ describe('GameState & Scoring Logic', () => {
       onFluxChange: () => {},
       onIntegrityChange: () => {},
       onNextCoreChange: () => {},
+      onCentralCoreChange: () => {},
       onStatusChange: () => {},
       onGameOver: () => {}
     }, 12345);
@@ -149,6 +150,7 @@ describe('Physics Simulation & Central Core Radial Accretion', () => {
   it('creates the central nucleus anchor in the world', () => {
     const sim = new PhysicsSimulation({
       onMerge: () => {},
+      onCentralCoreLevelUp: () => {},
       onCollisionImpact: () => {},
       onHazardStateChange: () => {}
     });
@@ -164,6 +166,7 @@ describe('Physics Simulation & Central Core Radial Accretion', () => {
     const mergesRecorded: MergeEvent[] = [];
     const sim = new PhysicsSimulation({
       onMerge: (event) => mergesRecorded.push(event),
+      onCentralCoreLevelUp: () => {},
       onCollisionImpact: () => {},
       onHazardStateChange: () => {}
     });
@@ -175,7 +178,8 @@ describe('Physics Simulation & Central Core Radial Accretion', () => {
     sim.spawnCore(cx - 10, cy - 60, 1, 1);
     sim.spawnCore(cx + 10, cy - 60, 1, -1);
 
-    expect(sim.getEntities().size).toBe(2);
+    // Initial count: Central Core (1) + 2 spawned cores = 3
+    expect(sim.getEntities().size).toBe(3);
 
     for (let i = 0; i < 20; i++) {
       sim.step(16.666);
@@ -184,15 +188,18 @@ describe('Physics Simulation & Central Core Radial Accretion', () => {
     expect(mergesRecorded.length).toBe(1);
     expect(mergesRecorded[0].resultTier).toBe(2);
     expect(mergesRecorded[0].fusionType).toBe('RESONANT');
-    expect(sim.getEntities().size).toBe(1);
+    // Post-merge: Central Core (1) + 1 merged Tier 2 core = 2
+    expect(sim.getEntities().size).toBe(2);
 
-    const remainingEntity = Array.from(sim.getEntities().values())[0];
-    expect(remainingEntity.tier).toBe(2);
+    const nonCentralEntities = Array.from(sim.getEntities().values()).filter(e => !e.isCentralCore);
+    expect(nonCentralEntities.length).toBe(1);
+    expect(nonCentralEntities[0].tier).toBe(2);
   });
 
   it('inverts all active core polarities upon singularity pulse', () => {
     const sim = new PhysicsSimulation({
       onMerge: () => {},
+      onCentralCoreLevelUp: () => {},
       onCollisionImpact: () => {},
       onHazardStateChange: () => {}
     });
@@ -200,15 +207,70 @@ describe('Physics Simulation & Central Core Radial Accretion', () => {
     sim.spawnCore(200, 300, 1, 1);
     sim.spawnCore(400, 300, 2, -1);
 
-    const entitiesBefore = Array.from(sim.getEntities().values());
-    expect(entitiesBefore[0].polarity).toBe(1);
-    expect(entitiesBefore[1].polarity).toBe(-1);
+    const regularEntitiesBefore = Array.from(sim.getEntities().values()).filter(e => !e.isCentralCore);
+    expect(regularEntitiesBefore[0].polarity).toBe(1);
+    expect(regularEntitiesBefore[1].polarity).toBe(-1);
 
     const invertedCount = sim.invertAllPolarities();
     expect(invertedCount).toBe(2);
 
-    const entitiesAfter = Array.from(sim.getEntities().values());
-    expect(entitiesAfter[0].polarity).toBe(-1);
-    expect(entitiesAfter[1].polarity).toBe(1);
+    const regularEntitiesAfter = Array.from(sim.getEntities().values()).filter(e => !e.isCentralCore);
+    expect(regularEntitiesAfter[0].polarity).toBe(-1);
+    expect(regularEntitiesAfter[1].polarity).toBe(1);
+  });
+
+  it('levels up the Central Core when a core of the same tier fuses into it', () => {
+    let levelUpEventRecorded: any = null;
+    const sim = new PhysicsSimulation({
+      onMerge: () => {},
+      onCentralCoreLevelUp: (event) => { levelUpEventRecorded = event; },
+      onCollisionImpact: () => {},
+      onHazardStateChange: () => {}
+    });
+
+    const cx = GAME_CONFIG.CENTER_X;
+    const cy = GAME_CONFIG.CENTER_Y;
+
+    // Central Core starts at Tier 1
+    const initialCentral = sim.getCentralEntity();
+    expect(initialCentral.tier).toBe(1);
+    expect(initialCentral.radius).toBe(CORE_TIERS[1].radius);
+
+    // Spawn a matching Tier 1 core touching the central core
+    // Distance between centers: initialCentral.radius + tier1.radius = 15 + 15 = 30
+    sim.spawnCore(cx, cy - 26, 1, -1);
+
+    // Step physics to trigger collision and central absorption
+    for (let i = 0; i < 20; i++) {
+      sim.step(16.666);
+    }
+
+    // Central Core should be Tier 2 now!
+    expect(levelUpEventRecorded).toBeDefined();
+    expect(levelUpEventRecorded.previousTier).toBe(1);
+    expect(levelUpEventRecorded.newTier).toBe(2);
+
+    const updatedCentral = sim.getCentralEntity();
+    expect(updatedCentral.tier).toBe(2);
+    expect(updatedCentral.radius).toBe(CORE_TIERS[2].radius);
+
+    // Now spawn a Tier 1 core touching the Tier 2 Central Core -> should NOT level up
+    levelUpEventRecorded = null;
+    sim.spawnCore(cx, cy - 32, 1, 1);
+    for (let i = 0; i < 20; i++) {
+      sim.step(16.666);
+    }
+    expect(levelUpEventRecorded).toBeNull();
+    expect(sim.getCentralEntity().tier).toBe(2);
+
+    // Now spawn a matching Tier 2 core touching the Tier 2 Central Core -> levels up to Tier 3!
+    sim.spawnCore(cx, cy - 36, 2, -1);
+    for (let i = 0; i < 20; i++) {
+      sim.step(16.666);
+    }
+    expect(levelUpEventRecorded).toBeDefined();
+    expect(levelUpEventRecorded.newTier).toBe(3);
+    expect(sim.getCentralEntity().tier).toBe(3);
+    expect(sim.getCentralEntity().radius).toBe(CORE_TIERS[3].radius);
   });
 });

@@ -1,14 +1,14 @@
 export const GAME_CONFIG = {
   // Chamber Resolution (Radial Coordinates)
-  CHAMBER_WIDTH: 620,
-  CHAMBER_HEIGHT: 620,
-  CENTER_X: 310,
-  CENTER_Y: 310,
+  CHAMBER_WIDTH: 640,
+  CHAMBER_HEIGHT: 640,
+  CENTER_X: 320,
+  CENTER_Y: 320,
 
   // Geometry & Radii
-  CENTRAL_CORE_RADIUS: 30,
-  CONTAINMENT_PERIMETER_RADIUS: 250, // Critical boundary threshold
-  LAUNCH_ORBIT_RADIUS: 285,          // Perimeter where launcher aims and deploys
+  CENTRAL_NUCLEUS_BASE_RADIUS: 15,
+  CONTAINMENT_PERIMETER_RADIUS: 255, // Critical boundary threshold
+  LAUNCH_ORBIT_RADIUS: 292,          // Perimeter where launcher aims and deploys
 
   // Inward Accretion & Central Gravity
   CENTRAL_GRAVITY_COEFF: 0.0018,      // Radial inward gravitational pull

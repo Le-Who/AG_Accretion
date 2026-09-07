@@ -37,6 +37,7 @@ export interface AccretionEntity {
   isMerging: boolean;
   spawnTime: number;
   renderRotation: number;
+  isCentralCore?: boolean;
 }
 
 export interface MergeEvent {
@@ -49,6 +50,14 @@ export interface MergeEvent {
   y: number;
   scoreGained: number;
   comboMultiplier: number;
+}
+
+export interface CentralCoreLevelUpEvent {
+  previousTier: number;
+  newTier: number;
+  fusionType: 'RESONANT' | 'FORCED';
+  consumedEntity: AccretionEntity;
+  scoreGained: number;
 }
 
 export interface Particle {

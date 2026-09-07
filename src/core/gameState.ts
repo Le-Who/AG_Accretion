@@ -1,5 +1,5 @@
 import { GAME_CONFIG } from '../config.js';
-import { GameStatus, MergeEvent, Polarity } from '../types.js';
+import { CentralCoreLevelUpEvent, GameStatus, MergeEvent, Polarity } from '../types.js';
 import { DeterministicRNG } from './rng.js';
 
 export interface GameStateListener {
@@ -7,6 +7,7 @@ export interface GameStateListener {
   onFluxChange: (charge: number, isReady: boolean) => void;
   onIntegrityChange: (integrityPercent: number, isCritical: boolean) => void;
   onNextCoreChange: (currentTier: number, currentPolarity: Polarity, nextTier: number, nextPolarity: Polarity) => void;
+  onCentralCoreChange: (tier: number) => void;
   onStatusChange: (status: GameStatus) => void;
   onGameOver: (stats: GameStats) => void;
 }
@@ -15,6 +16,7 @@ export interface GameStats {
   finalScore: number;
   bestScore: number;
   maxTier: number;
+  centralCoreTier: number;
   resonantMerges: number;
   peakCombo: number;
   fluxInversions: number;
@@ -35,6 +37,9 @@ export class GameState {
   private fluxInversionCount: number = 0;
   private maxTierReached: number = 1;
 
+  // Central Core Level (starts at Tier 1, levels up when matching tier core fuses into it)
+  public centralCoreTier: number = 1;
+
   // Signature System: Flux Pulse
   private fluxCharge: number = 0;
 
@@ -48,7 +53,7 @@ export class GameState {
   public nextTier: number = 1;
   public nextPolarity: Polarity = -1;
 
-  // Radial Aiming: Angle around perimeter in radians (default -PI/2 = 12 o'clock top)
+  // Radial Aiming: Angle around perimeter in radians
   public aimAngle: number = -Math.PI / 2;
   private launchCooldownTimer: number = 0;
 
@@ -71,9 +76,10 @@ export class GameState {
     this.currentPolarity = this.rng.nextPolarity();
     this.nextTier = this.rng.nextSpawnTier();
     this.nextPolarity = this.rng.nextPolarity();
-    this.maxTierReached = Math.max(this.maxTierReached, this.currentTier, this.nextTier);
+    this.maxTierReached = Math.max(this.maxTierReached, this.currentTier, this.nextTier, this.centralCoreTier);
 
     this.listener.onNextCoreChange(this.currentTier, this.currentPolarity, this.nextTier, this.nextPolarity);
+    this.listener.onCentralCoreChange(this.centralCoreTier);
     this.listener.onScoreChange(this.score, this.bestScore, this.comboMultiplier);
     this.listener.onFluxChange(this.fluxCharge, this.fluxCharge >= GAME_CONFIG.FLUX_MAX_CHARGE);
     this.listener.onIntegrityChange(100, false);
@@ -124,7 +130,6 @@ export class GameState {
       this.maxTierReached = event.resultTier;
     }
 
-    // Refresh combo
     this.comboTimer = GAME_CONFIG.COMBO_WINDOW_MS;
     this.comboMultiplier = Math.min(
       GAME_CONFIG.MAX_COMBO_MULTIPLIER,
@@ -154,6 +159,48 @@ export class GameState {
 
     this.fluxCharge = Math.min(GAME_CONFIG.FLUX_MAX_CHARGE, this.fluxCharge + fluxDelta);
 
+    this.listener.onScoreChange(this.score, this.bestScore, this.comboMultiplier);
+    this.listener.onFluxChange(this.fluxCharge, this.fluxCharge >= GAME_CONFIG.FLUX_MAX_CHARGE);
+  }
+
+  /**
+   * Called when a matching-tier core fuses into and upgrades the Central Nucleus!
+   */
+  public handleCentralCoreLevelUp(event: CentralCoreLevelUpEvent): void {
+    if (this.status === 'GAMEOVER') return;
+
+    this.centralCoreTier = event.newTier;
+    if (event.newTier > this.maxTierReached) {
+      this.maxTierReached = event.newTier;
+    }
+
+    this.comboTimer = GAME_CONFIG.COMBO_WINDOW_MS;
+    this.comboMultiplier = Math.min(
+      GAME_CONFIG.MAX_COMBO_MULTIPLIER,
+      this.comboMultiplier + 1.0 // Extra combo reward for central nucleus evolution!
+    );
+    if (this.comboMultiplier > this.peakCombo) {
+      this.peakCombo = this.comboMultiplier;
+    }
+
+    const scoredPoints = Math.round(event.scoreGained * this.comboMultiplier);
+    this.score += scoredPoints;
+
+    if (this.score > this.bestScore) {
+      this.bestScore = this.score;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(GAME_CONFIG.STORAGE_BEST_SCORE_KEY, String(this.bestScore));
+      }
+    }
+
+    // Supercharge flux on nucleus evolution
+    this.fluxCharge = Math.min(GAME_CONFIG.FLUX_MAX_CHARGE, this.fluxCharge + 40);
+
+    if (event.fusionType === 'RESONANT') {
+      this.resonantMergeCount++;
+    }
+
+    this.listener.onCentralCoreChange(this.centralCoreTier);
     this.listener.onScoreChange(this.score, this.bestScore, this.comboMultiplier);
     this.listener.onFluxChange(this.fluxCharge, this.fluxCharge >= GAME_CONFIG.FLUX_MAX_CHARGE);
   }
@@ -197,7 +244,6 @@ export class GameState {
       }
     }
 
-    // Hazard Line Integrity Management
     if (this.isHazardActive) {
       this.integrityMs -= dtMs;
       if (this.integrityMs <= 0) {
@@ -226,6 +272,7 @@ export class GameState {
       finalScore: this.score,
       bestScore: this.bestScore,
       maxTier: this.maxTierReached,
+      centralCoreTier: this.centralCoreTier,
       resonantMerges: this.resonantMergeCount,
       peakCombo: this.peakCombo,
       fluxInversions: this.fluxInversionCount
@@ -241,6 +288,7 @@ export class GameState {
     this.resonantMergeCount = 0;
     this.fluxInversionCount = 0;
     this.maxTierReached = 1;
+    this.centralCoreTier = 1;
     this.fluxCharge = 0;
     this.integrityMs = GAME_CONFIG.HAZARD_GRACE_PERIOD_MS;
     this.isHazardActive = false;

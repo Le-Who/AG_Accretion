@@ -1,11 +1,12 @@
 import Matter from 'matter-js';
 import { GAME_CONFIG } from '../config.js';
 import { CORE_TIERS, MAX_TIER } from '../entities/coreTiers.js';
-import { AccretionEntity, MergeEvent, Polarity } from '../types.js';
+import { AccretionEntity, CentralCoreLevelUpEvent, MergeEvent, Polarity } from '../types.js';
 import { MagneticFieldSystem } from './magneticField.js';
 
 export interface SimulationCallbacks {
   onMerge: (event: MergeEvent) => void;
+  onCentralCoreLevelUp: (event: CentralCoreLevelUpEvent) => void;
   onCollisionImpact: (intensity: number) => void;
   onHazardStateChange: (inHazard: boolean, maxDistFromCenter: number) => void;
 }
@@ -17,15 +18,22 @@ interface PendingMerge {
   bodyB: Matter.Body;
 }
 
+interface PendingCentralAbsorption {
+  consumedEntity: AccretionEntity;
+  consumedBody: Matter.Body;
+}
+
 export class PhysicsSimulation {
   private engine: Matter.Engine;
   private world: Matter.World;
   private entities = new Map<number, AccretionEntity>();
   private bodies = new Map<number, Matter.Body>();
   private pendingMerges: PendingMerge[] = [];
+  private pendingCentralAbsorptions: PendingCentralAbsorption[] = [];
   private callbacks: SimulationCallbacks;
 
-  // Central Core Nucleus (The static gravitational anchor)
+  // The Central Core Entity (starts at Tier 1)
+  private centralEntity: AccretionEntity;
   private centralNucleus: Matter.Body;
 
   // Fixed timestep accumulator
@@ -38,7 +46,7 @@ export class PhysicsSimulation {
     this.engine = Matter.Engine.create({
       gravity: {
         x: 0,
-        y: 0, // Zero global gravity! Replaced by radial central core gravity
+        y: 0,
         scale: 0.001
       },
       constraintIterations: 3,
@@ -48,19 +56,35 @@ export class PhysicsSimulation {
 
     this.world = this.engine.world;
 
-    // Create central static nucleus anchor
+    // Create Central Core Nucleus starting at Tier 1 (smallest size)
     const cx = GAME_CONFIG.CENTER_X;
     const cy = GAME_CONFIG.CENTER_Y;
-    const nr = GAME_CONFIG.CENTRAL_CORE_RADIUS;
+    const initialTier = 1;
+    const initialRadius = CORE_TIERS[initialTier].radius;
 
-    this.centralNucleus = Matter.Bodies.circle(cx, cy, nr, {
+    this.centralNucleus = Matter.Bodies.circle(cx, cy, initialRadius, {
       isStatic: true,
       friction: 0.35,
       restitution: 0.25,
       label: 'CENTRAL_NUCLEUS'
     });
 
+    this.centralEntity = {
+      id: 'central_nucleus',
+      bodyId: this.centralNucleus.id,
+      tier: initialTier,
+      polarity: 1,
+      radius: initialRadius,
+      createdAt: performance.now(),
+      isMerging: false,
+      spawnTime: performance.now(),
+      renderRotation: 0,
+      isCentralCore: true
+    };
+
     Matter.World.add(this.world, this.centralNucleus);
+    this.entities.set(this.centralNucleus.id, this.centralEntity);
+    this.bodies.set(this.centralNucleus.id, this.centralNucleus);
 
     // Collision listener
     Matter.Events.on(this.engine, 'collisionStart', (event) => {
@@ -76,7 +100,6 @@ export class PhysicsSimulation {
       const bodyA = pair.bodyA;
       const bodyB = pair.bodyB;
 
-      // Track impact kinetic energy for audio
       const speedA = Matter.Vector.magnitude(bodyA.velocity);
       const speedB = Matter.Vector.magnitude(bodyB.velocity);
       const relSpeed = Math.abs(speedA - speedB);
@@ -87,9 +110,33 @@ export class PhysicsSimulation {
 
       if (!entityA || !entityB) continue;
 
-      // Both are active accretion cores
+      // Check if one of the bodies is the Central Nucleus
+      const isACentral = entityA.isCentralCore === true;
+      const isBCentral = entityB.isCentralCore === true;
+
+      if (isACentral || isBCentral) {
+        const consumedEntity = isACentral ? entityB : entityA;
+        const consumedBody = isACentral ? bodyB : bodyA;
+
+        // When other core reaches the same tier as the central core -> Central Core absorbs it and levels up!
+        if (
+          consumedEntity.tier === this.centralEntity.tier &&
+          this.centralEntity.tier < MAX_TIER &&
+          !consumedEntity.isMerging &&
+          !this.centralEntity.isMerging
+        ) {
+          consumedEntity.isMerging = true;
+          this.centralEntity.isMerging = true;
+          this.pendingCentralAbsorptions.push({
+            consumedEntity,
+            consumedBody
+          });
+        }
+        continue;
+      }
+
+      // Both are regular accretion cores in the cluster
       if (entityA.tier === entityB.tier && entityA.tier < MAX_TIER) {
-        // Prevent double consumption
         if (!entityA.isMerging && !entityB.isMerging) {
           entityA.isMerging = true;
           entityB.isMerging = true;
@@ -109,9 +156,6 @@ export class PhysicsSimulation {
     }
   }
 
-  /**
-   * Spawns an accretion core at the specified position with optional velocity.
-   */
   public spawnCore(
     x: number,
     y: number,
@@ -145,7 +189,8 @@ export class PhysicsSimulation {
       createdAt: performance.now(),
       isMerging: false,
       spawnTime: performance.now(),
-      renderRotation: 0
+      renderRotation: 0,
+      isCentralCore: false
     };
 
     this.entities.set(body.id, entity);
@@ -154,9 +199,6 @@ export class PhysicsSimulation {
     return entity;
   }
 
-  /**
-   * Launches a core from the orbital perimeter directed toward the central core.
-   */
   public launchCoreInward(angleRad: number, tierNumber: number, polarity: Polarity): AccretionEntity {
     const cx = GAME_CONFIG.CENTER_X;
     const cy = GAME_CONFIG.CENTER_Y;
@@ -165,7 +207,6 @@ export class PhysicsSimulation {
     const spawnX = cx + Math.cos(angleRad) * launchDist;
     const spawnY = cy + Math.sin(angleRad) * launchDist;
 
-    // Direct velocity inward toward the central core
     const speed = GAME_CONFIG.LAUNCH_SPEED;
     const vx = -Math.cos(angleRad) * speed;
     const vy = -Math.sin(angleRad) * speed;
@@ -173,23 +214,19 @@ export class PhysicsSimulation {
     return this.spawnCore(spawnX, spawnY, tierNumber, polarity, vx, vy);
   }
 
-  /**
-   * Inverts the polarity of all active cores in the chamber (Signature Mechanic).
-   */
   public invertAllPolarities(): number {
     let invertedCount = 0;
     for (const entity of this.entities.values()) {
-      if (!entity.isMerging) {
+      if (!entity.isMerging && !entity.isCentralCore) {
         entity.polarity = (entity.polarity * -1) as Polarity;
         invertedCount++;
       }
     }
+    // Also flip central core polarity
+    this.centralEntity.polarity = (this.centralEntity.polarity * -1) as Polarity;
     return invertedCount;
   }
 
-  /**
-   * Runs the fixed-step simulation loop.
-   */
   public step(dtMs: number): void {
     const clampedDt = Math.min(dtMs, GAME_CONFIG.MAX_DELTA_ACCUMULATION_MS);
     this.accumulator += clampedDt;
@@ -198,62 +235,160 @@ export class PhysicsSimulation {
     let subSteps = 0;
 
     while (this.accumulator >= fixedStep && subSteps < GAME_CONFIG.MAX_SUB_STEPS) {
-      // 1. Apply Central Gravity pulling all cores toward the central core
+      // 1. Inward Central Gravity
       this.applyCentralGravity();
 
-      // 2. Apply pairwise magnetic polarity forces
+      // 2. Pairwise Magnetic Forces
       MagneticFieldSystem.applyMagneticForces(this.entities, this.bodies);
 
-      // 3. Step Matter.js physics engine
+      // 3. Update Matter.js
       Matter.Engine.update(this.engine, fixedStep);
 
-      // 4. Process deterministic merge queue
+      // 4. Resolve Central Core Absorptions & Regular Merges
+      this.resolveCentralAbsorptions();
       this.resolvePendingMerges();
 
-      // 5. Clean up out-of-bounds or NaN bodies
+      // 5. Clean up rogue bodies
       this.sanitizeBodies();
 
       this.accumulator -= fixedStep;
       subSteps++;
     }
 
-    // Evaluate outer containment perimeter hazard state
     this.evaluateHazardPerimeter();
   }
 
-  /**
-   * Applies inward radial gravitational force pulling bodies toward the central core nucleus.
-   */
   private applyCentralGravity(): void {
     const cx = GAME_CONFIG.CENTER_X;
     const cy = GAME_CONFIG.CENTER_Y;
-    const minR = GAME_CONFIG.CENTRAL_CORE_RADIUS;
+    const centralR = this.centralEntity.radius;
 
     for (const [bodyId, body] of this.bodies.entries()) {
       const entity = this.entities.get(bodyId);
-      if (!entity || entity.isMerging) continue;
+      if (!entity || entity.isMerging || entity.isCentralCore) continue;
 
       const dx = cx - body.position.x;
       const dy = cy - body.position.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
-      if (dist < minR * 0.5) continue;
+      if (dist < centralR * 0.5) continue;
 
       const nx = dx / (dist || 1);
       const ny = dy / (dist || 1);
 
-      // Radial gravity with gentle distance curve
-      const pull = GAME_CONFIG.CENTRAL_GRAVITY_COEFF * body.mass * (1 + 40 / Math.max(minR, dist));
+      const pull = GAME_CONFIG.CENTRAL_GRAVITY_COEFF * body.mass * (1 + 40 / Math.max(centralR, dist));
       Matter.Body.applyForce(body, body.position, {
         x: nx * pull,
         y: ny * pull
       });
 
-      // Soft damping to prevent infinite orbital slingshotting
       Matter.Body.setVelocity(body, {
         x: body.velocity.x * GAME_CONFIG.CENTRAL_DAMPING,
         y: body.velocity.y * GAME_CONFIG.CENTRAL_DAMPING
       });
+    }
+  }
+
+  /**
+   * Resolves absorption of a matching-tier core by the Central Nucleus, leveling up the Nucleus!
+   */
+  private resolveCentralAbsorptions(): void {
+    if (this.pendingCentralAbsorptions.length === 0) return;
+
+    const batch = [...this.pendingCentralAbsorptions];
+    this.pendingCentralAbsorptions = [];
+
+    for (const item of batch) {
+      const { consumedEntity, consumedBody } = item;
+
+      if (!this.entities.has(consumedBody.id)) continue;
+
+      const previousTier = this.centralEntity.tier;
+      const newTier = previousTier + 1;
+      const newRadius = CORE_TIERS[newTier]?.radius || this.centralEntity.radius;
+
+      const fusionType: 'RESONANT' | 'FORCED' =
+        consumedEntity.polarity !== this.centralEntity.polarity ? 'RESONANT' : 'FORCED';
+
+      // Remove consumed body from world
+      Matter.World.remove(this.world, consumedBody);
+      this.entities.delete(consumedBody.id);
+      this.bodies.delete(consumedBody.id);
+
+      // Upgrade Central Core Entity
+      this.centralEntity.tier = newTier;
+      this.centralEntity.radius = newRadius;
+      this.centralEntity.isMerging = false;
+
+      // Recreate central static body with the new radius at center
+      const cx = GAME_CONFIG.CENTER_X;
+      const cy = GAME_CONFIG.CENTER_Y;
+
+      Matter.World.remove(this.world, this.centralNucleus);
+      this.entities.delete(this.centralNucleus.id);
+      this.bodies.delete(this.centralNucleus.id);
+
+      this.centralNucleus = Matter.Bodies.circle(cx, cy, newRadius, {
+        isStatic: true,
+        friction: 0.35,
+        restitution: 0.25,
+        label: 'CENTRAL_NUCLEUS'
+      });
+
+      this.centralEntity.bodyId = this.centralNucleus.id;
+      Matter.World.add(this.world, this.centralNucleus);
+      this.entities.set(this.centralNucleus.id, this.centralEntity);
+      this.bodies.set(this.centralNucleus.id, this.centralNucleus);
+
+      // Gently push surrounding bodies outward so they don't overlap with the newly expanded nucleus
+      this.repelBodiesFromExpandedNucleus(cx, cy, newRadius);
+
+      // Shockwave
+      if (fusionType === 'RESONANT') {
+        this.applyImplosionShockwave(cx, cy, 220);
+      } else {
+        this.applyExplosionShockwave(cx, cy, 100);
+      }
+
+      const tierDef = CORE_TIERS[newTier] || CORE_TIERS[MAX_TIER];
+      const scoreGained = Math.round(
+        tierDef.scoreValue * 2.0 * (fusionType === 'RESONANT' ? GAME_CONFIG.RESONANT_SCORE_MULTIPLIER : 1.0)
+      );
+
+      this.callbacks.onCentralCoreLevelUp({
+        previousTier,
+        newTier,
+        fusionType,
+        consumedEntity,
+        scoreGained
+      });
+    }
+  }
+
+  private repelBodiesFromExpandedNucleus(cx: number, cy: number, nucleusRadius: number): void {
+    for (const [bodyId, body] of this.bodies.entries()) {
+      if (bodyId === this.centralNucleus.id) continue;
+      const entity = this.entities.get(bodyId);
+      if (!entity) continue;
+
+      const dx = body.position.x - cx;
+      const dy = body.position.y - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const minSafeDist = nucleusRadius + entity.radius + 3;
+
+      if (dist < minSafeDist) {
+        const nx = dist > 0.01 ? dx / dist : Math.cos(Math.random() * Math.PI * 2);
+        const ny = dist > 0.01 ? dy / dist : Math.sin(Math.random() * Math.PI * 2);
+
+        Matter.Body.setPosition(body, {
+          x: cx + nx * minSafeDist,
+          y: cy + ny * minSafeDist
+        });
+        Matter.Body.setVelocity(body, {
+          x: nx * 1.5,
+          y: ny * 1.5
+        });
+      }
     }
   }
 
@@ -282,7 +417,6 @@ export class PhysicsSimulation {
         ? (Math.random() < 0.5 ? 1 : -1)
         : entityA.polarity;
 
-      // Remove parent bodies
       Matter.World.remove(this.world, bodyA);
       Matter.World.remove(this.world, bodyB);
       this.entities.delete(bodyA.id);
@@ -290,14 +424,12 @@ export class PhysicsSimulation {
       this.bodies.delete(bodyA.id);
       this.bodies.delete(bodyB.id);
 
-      // Spawn merged result core
       const newEntity = this.spawnCore(midX, midY, nextTier, nextPolarity);
       const newBody = this.bodies.get(newEntity.bodyId);
       if (newBody) {
         Matter.Body.setVelocity(newBody, { x: avgVx, y: avgVy });
       }
 
-      // If RESONANT: inward implosive suction toward the central core!
       if (fusionType === 'RESONANT') {
         this.applyImplosionShockwave(midX, midY, 190);
       } else {
@@ -324,6 +456,7 @@ export class PhysicsSimulation {
   private applyImplosionShockwave(cx: number, cy: number, radius: number): void {
     const rSq = radius * radius;
     for (const [bodyId, body] of this.bodies.entries()) {
+      if (bodyId === this.centralNucleus.id) continue;
       const entity = this.entities.get(bodyId);
       if (!entity || entity.isMerging) continue;
 
@@ -345,6 +478,7 @@ export class PhysicsSimulation {
   private applyExplosionShockwave(cx: number, cy: number, radius: number): void {
     const rSq = radius * radius;
     for (const [bodyId, body] of this.bodies.entries()) {
+      if (bodyId === this.centralNucleus.id) continue;
       const entity = this.entities.get(bodyId);
       if (!entity || entity.isMerging) continue;
 
@@ -369,6 +503,7 @@ export class PhysicsSimulation {
     const cy = GAME_CONFIG.CENTER_Y;
 
     for (const [bodyId, body] of this.bodies.entries()) {
+      if (bodyId === this.centralNucleus.id) continue;
       if (isNaN(body.position.x) || isNaN(body.position.y)) {
         Matter.World.remove(this.world, body);
         this.bodies.delete(bodyId);
@@ -376,7 +511,6 @@ export class PhysicsSimulation {
         continue;
       }
 
-      // Re-center runaway bodies that escape too far outside
       const dx = body.position.x - cx;
       const dy = body.position.y - cy;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -391,9 +525,6 @@ export class PhysicsSimulation {
     }
   }
 
-  /**
-   * Checks if any settled core in the accretion cluster expands beyond the outer containment ring.
-   */
   private evaluateHazardPerimeter(): void {
     let inHazard = false;
     let maxDist = 0;
@@ -401,10 +532,10 @@ export class PhysicsSimulation {
     const cy = GAME_CONFIG.CENTER_Y;
 
     for (const [bodyId, body] of this.bodies.entries()) {
+      if (bodyId === this.centralNucleus.id) continue;
       const entity = this.entities.get(bodyId);
       if (!entity) continue;
 
-      // Allow grace time after initial launch so moving cores don't immediately trigger breach
       if (performance.now() - entity.spawnTime < 1400) continue;
 
       const dx = body.position.x - cx;
@@ -435,13 +566,55 @@ export class PhysicsSimulation {
     return this.centralNucleus;
   }
 
+  public getCentralEntity(): AccretionEntity {
+    return this.centralEntity;
+  }
+
   public reset(): void {
     this.pendingMerges = [];
-    for (const body of this.bodies.values()) {
-      Matter.World.remove(this.world, body);
+    this.pendingCentralAbsorptions = [];
+
+    // Remove all regular bodies
+    for (const [bodyId, body] of this.bodies.entries()) {
+      if (bodyId !== this.centralNucleus.id) {
+        Matter.World.remove(this.world, body);
+      }
     }
+
     this.entities.clear();
     this.bodies.clear();
+
+    // Reset Central Core to Tier 1
+    const cx = GAME_CONFIG.CENTER_X;
+    const cy = GAME_CONFIG.CENTER_Y;
+    const initialTier = 1;
+    const initialRadius = CORE_TIERS[initialTier].radius;
+
+    Matter.World.remove(this.world, this.centralNucleus);
+    this.centralNucleus = Matter.Bodies.circle(cx, cy, initialRadius, {
+      isStatic: true,
+      friction: 0.35,
+      restitution: 0.25,
+      label: 'CENTRAL_NUCLEUS'
+    });
+
+    this.centralEntity = {
+      id: 'central_nucleus',
+      bodyId: this.centralNucleus.id,
+      tier: initialTier,
+      polarity: 1,
+      radius: initialRadius,
+      createdAt: performance.now(),
+      isMerging: false,
+      spawnTime: performance.now(),
+      renderRotation: 0,
+      isCentralCore: true
+    };
+
+    Matter.World.add(this.world, this.centralNucleus);
+    this.entities.set(this.centralNucleus.id, this.centralEntity);
+    this.bodies.set(this.centralNucleus.id, this.centralNucleus);
+
     this.accumulator = 0;
   }
 }

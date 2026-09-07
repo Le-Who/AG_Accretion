@@ -33,8 +33,7 @@ export class CanvasRenderer {
     const availableWidth = container.clientWidth - 16;
     const availableHeight = container.clientHeight - 16;
 
-    // Square radial viewport (620x620)
-    const targetSize = Math.min(availableWidth, availableHeight, 620);
+    const targetSize = Math.min(availableWidth, availableHeight, 640);
 
     this.canvas.style.width = `${Math.floor(targetSize)}px`;
     this.canvas.style.height = `${Math.floor(targetSize)}px`;
@@ -78,10 +77,10 @@ export class CanvasRenderer {
     }
 
     // 5. Active Accreted Cores in Chamber
-    this.drawActiveCores(ctx, simulation);
+    this.drawActiveCores(ctx, simulation, gameState.centralCoreTier);
 
-    // 6. The Central Core (Zero-Point Nucleus Anchor)
-    this.drawCentralNucleus(ctx, cx, cy, gameState);
+    // 6. The Central Core (Zero-Point Nucleus Anchor Chip)
+    this.drawCentralNucleus(ctx, cx, cy, simulation, gameState);
 
     // 7. Aiming Launcher at Orbital Perimeter
     if (gameState.canLaunch()) {
@@ -98,30 +97,28 @@ export class CanvasRenderer {
   }
 
   private drawDeepSpaceBackground(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
-    // Smooth radial cosmic gradient
-    const bgGrad = ctx.createRadialGradient(cx, cy, 30, cx, cy, 340);
+    const bgGrad = ctx.createRadialGradient(cx, cy, 30, cx, cy, 350);
     bgGrad.addColorStop(0, '#090e1a');
     bgGrad.addColorStop(0.55, '#04060b');
     bgGrad.addColorStop(1, '#020305');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, GAME_CONFIG.CHAMBER_WIDTH, GAME_CONFIG.CHAMBER_HEIGHT);
 
-    // Subtle central gravitational glow
-    const glowGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, 180);
-    glowGrad.addColorStop(0, 'rgba(56, 189, 248, 0.08)');
+    // Central gravitational lens glow
+    const glowGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, 190);
+    glowGrad.addColorStop(0, 'rgba(56, 189, 248, 0.09)');
     glowGrad.addColorStop(0.6, 'rgba(129, 140, 248, 0.03)');
     glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = glowGrad;
     ctx.beginPath();
-    ctx.arc(cx, cy, 180, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 190, 0, Math.PI * 2);
     ctx.fill();
   }
 
   private drawOrbitalCoordinates(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
     ctx.save();
 
-    // Faint concentric range rings
-    const radii = [75, 135, 195];
+    const radii = [75, 140, 200];
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
     ctx.lineWidth = 1;
 
@@ -131,23 +128,21 @@ export class CanvasRenderer {
       ctx.stroke();
     }
 
-    // Delicate crosshair grid axes
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
     ctx.beginPath();
-    ctx.moveTo(cx - 260, cy);
-    ctx.lineTo(cx + 260, cy);
-    ctx.moveTo(cx, cy - 260);
-    ctx.lineTo(cx, cy + 260);
+    ctx.moveTo(cx - 270, cy);
+    ctx.lineTo(cx + 270, cy);
+    ctx.moveTo(cx, cy - 270);
+    ctx.lineTo(cx, cy + 270);
     ctx.stroke();
 
-    // Rotating radial compass ticks
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
     ctx.lineWidth = 1;
     const tickCount = 12;
     for (let i = 0; i < tickCount; i++) {
       const angle = (i * Math.PI * 2) / tickCount + this.animTime * 0.03;
-      const rInner = 246;
-      const rOuter = 254;
+      const rInner = 250;
+      const rOuter = 260;
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(angle) * rInner, cy + Math.sin(angle) * rInner);
       ctx.lineTo(cx + Math.cos(angle) * rOuter, cy + Math.sin(angle) * rOuter);
@@ -200,75 +195,104 @@ export class CanvasRenderer {
     ctx: CanvasRenderingContext2D,
     cx: number,
     cy: number,
+    simulation: PhysicsSimulation,
     gameState: GameState
   ): void {
-    const nr = GAME_CONFIG.CENTRAL_CORE_RADIUS;
-    const pulse = 1 + Math.sin(this.animTime * 3.5) * 0.06;
+    const central = simulation.getCentralEntity();
+    const nr = central.radius;
+    const pulse = 1 + Math.sin(this.animTime * 3.5) * 0.05;
     const isFluxReady = gameState.canTriggerFluxPulse();
 
     ctx.save();
     ctx.translate(cx, cy);
 
-    // 1. Outer Ethereal Atmosphere Aura
-    const auraGrad = ctx.createRadialGradient(0, 0, nr * 0.5, 0, 0, nr * 2.4);
+    // 1. Grand Outer Ethereal Nucleus Crown Aura
+    const auraGrad = ctx.createRadialGradient(0, 0, nr * 0.5, 0, 0, nr * 2.5);
     if (isFluxReady) {
       auraGrad.addColorStop(0, 'rgba(56, 189, 248, 0.45)');
       auraGrad.addColorStop(0.5, 'rgba(245, 158, 11, 0.25)');
       auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
     } else {
-      auraGrad.addColorStop(0, 'rgba(6, 182, 212, 0.3)');
-      auraGrad.addColorStop(0.6, 'rgba(99, 102, 241, 0.12)');
+      auraGrad.addColorStop(0, 'rgba(6, 182, 212, 0.35)');
+      auraGrad.addColorStop(0.6, 'rgba(99, 102, 241, 0.15)');
       auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
     }
     ctx.fillStyle = auraGrad;
     ctx.beginPath();
-    ctx.arc(0, 0, nr * 2.4 * pulse, 0, Math.PI * 2);
+    ctx.arc(0, 0, nr * 2.5 * pulse, 0, Math.PI * 2);
     ctx.fill();
 
-    // 2. Rotating Tech Gyro Rings
-    ctx.strokeStyle = isFluxReady ? 'rgba(251, 191, 36, 0.8)' : 'rgba(56, 189, 248, 0.6)';
+    // 2. Rotating Tech Gyro Crown Rings
+    ctx.strokeStyle = isFluxReady ? 'rgba(251, 191, 36, 0.85)' : 'rgba(56, 189, 248, 0.7)';
     ctx.lineWidth = 1.2;
-    ctx.setLineDash([6, 5]);
+    ctx.setLineDash([4, 5]);
 
     ctx.save();
-    ctx.rotate(this.animTime * 1.4);
+    ctx.rotate(this.animTime * 1.5);
     ctx.beginPath();
-    ctx.arc(0, 0, nr * 1.3, 0, Math.PI * 2);
+    ctx.arc(0, 0, nr + 7, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
 
     ctx.save();
     ctx.rotate(-this.animTime * 1.8);
     ctx.beginPath();
-    ctx.arc(0, 0, nr * 1.15, 0, Math.PI * 2);
+    ctx.arc(0, 0, nr + 13, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
 
-    // 3. Central Anchor Solid Core
-    const coreGrad = ctx.createRadialGradient(-nr * 0.25, -nr * 0.25, 2, 0, 0, nr);
-    coreGrad.addColorStop(0, '#ffffff');
-    coreGrad.addColorStop(0.3, isFluxReady ? '#38bdf8' : '#0ea5e9');
-    coreGrad.addColorStop(0.8, '#0f172a');
-    coreGrad.addColorStop(1, '#020617');
+    // 3. Render the Central Core Chip itself (Starts at Tier 1 and grows with upgrades)
+    this.renderCoreEntity(ctx, 0, 0, this.animTime * 0.3, central, 1.0);
 
-    ctx.fillStyle = coreGrad;
-    ctx.beginPath();
-    ctx.arc(0, 0, nr, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 4. Fine Metallic Rim Bevel
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+    // 4. Central Core Emblem Crown Overlay
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.arc(0, 0, nr, 0, Math.PI * 2);
     ctx.stroke();
 
-    // 5. Center Singularity Dot
-    ctx.fillStyle = '#ffffff';
-    ctx.shadowColor = '#38bdf8';
-    ctx.shadowBlur = 10;
+    ctx.restore();
+  }
+
+  private drawActiveCores(
+    ctx: CanvasRenderingContext2D,
+    simulation: PhysicsSimulation,
+    centralCoreTier: number
+  ): void {
+    const bodies = simulation.getBodies();
+    const entities = simulation.getEntities();
+
+    for (const [bodyId, entity] of entities.entries()) {
+      if (entity.isCentralCore) continue; // Rendered via drawCentralNucleus
+      const body = bodies.get(bodyId);
+      if (!body) continue;
+
+      this.renderCoreEntity(ctx, body.position.x, body.position.y, body.angle, entity);
+
+      // Highlight cores that match the Central Core's tier (ready to level up the central nucleus!)
+      if (entity.tier === centralCoreTier) {
+        this.drawNucleusMatchingBeacon(ctx, body.position.x, body.position.y, entity.radius);
+      }
+    }
+  }
+
+  private drawNucleusMatchingBeacon(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    radius: number
+  ): void {
+    ctx.save();
+    const pulse = 1 + Math.sin(this.animTime * 6) * 0.08;
+    const r = (radius + 4) * pulse;
+
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.75)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([3, 4]);
     ctx.beginPath();
-    ctx.arc(0, 0, 4.5 * pulse, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
 
     ctx.restore();
   }
@@ -292,7 +316,6 @@ export class CanvasRenderer {
     const isAlpha = gameState.currentPolarity === 1;
     const tierDef = CORE_TIERS[gameState.currentTier];
 
-    // Aiming Rail Bracket Gantry
     ctx.strokeStyle = isAlpha ? 'rgba(245, 158, 11, 0.7)' : 'rgba(6, 182, 212, 0.7)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -302,7 +325,6 @@ export class CanvasRenderer {
     ctx.arc(0, 0, tierDef.radius + 6, Math.PI * 1.2, Math.PI * 1.8);
     ctx.stroke();
 
-    // Inward Launch Pointer Triangle
     ctx.fillStyle = isAlpha ? '#fbbf24' : '#38bdf8';
     ctx.beginPath();
     ctx.moveTo(-6, tierDef.radius + 12);
@@ -313,7 +335,6 @@ export class CanvasRenderer {
 
     ctx.restore();
 
-    // Render Ready Core inside launcher with soft breathing
     const hoverOffset = Math.sin(this.animTime * 5) * 2;
     const coreX = cx + Math.cos(angle) * (rOrbit + hoverOffset);
     const coreY = cy + Math.sin(angle) * (rOrbit + hoverOffset);
@@ -327,7 +348,8 @@ export class CanvasRenderer {
       createdAt: 0,
       isMerging: false,
       spawnTime: 0,
-      renderRotation: 0
+      renderRotation: 0,
+      isCentralCore: false
     };
 
     this.renderCoreEntity(ctx, coreX, coreY, this.animTime * 0.5, mockEntity, 0.95);
@@ -362,7 +384,6 @@ export class CanvasRenderer {
     }
     ctx.stroke();
 
-    // Target landing ghost indicator at the end
     const end = points[points.length - 1];
     ctx.strokeStyle = isAlpha ? 'rgba(245, 158, 11, 0.3)' : 'rgba(6, 182, 212, 0.3)';
     ctx.lineWidth = 1;
@@ -372,18 +393,6 @@ export class CanvasRenderer {
     ctx.stroke();
 
     ctx.restore();
-  }
-
-  private drawActiveCores(ctx: CanvasRenderingContext2D, simulation: PhysicsSimulation): void {
-    const bodies = simulation.getBodies();
-    const entities = simulation.getEntities();
-
-    for (const [bodyId, entity] of entities.entries()) {
-      const body = bodies.get(bodyId);
-      if (!body) continue;
-
-      this.renderCoreEntity(ctx, body.position.x, body.position.y, body.angle, entity);
-    }
   }
 
   private renderCoreEntity(
@@ -441,7 +450,6 @@ export class CanvasRenderer {
     ctx.arc(0, 0, r * 0.82, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Orbiting micro-satellites for higher tiers
     if (entity.tier >= 3) {
       const nodeCount = entity.tier >= 6 ? 4 : 3;
       const innerR = r * 0.52;
@@ -467,7 +475,7 @@ export class CanvasRenderer {
     ctx.fillText(isAlpha ? '+' : '−', 0, -r * 0.06);
 
     // Codename Readout
-    if (r >= 28) {
+    if (r >= 22) {
       ctx.font = `600 ${Math.max(7, Math.floor(r * 0.2))}px "JetBrains Mono", monospace`;
       ctx.fillStyle = isAlpha ? '#fef08a' : '#cffafe';
       ctx.fillText(tierDef.codename, 0, r * 0.46);
@@ -504,7 +512,8 @@ export class CanvasRenderer {
       createdAt: 0,
       isMerging: false,
       spawnTime: 0,
-      renderRotation: 0
+      renderRotation: 0,
+      isCentralCore: false
     };
 
     this.renderCoreEntity(ctx, 30, 30, this.animTime * 0.8, mockEntity, 1.0);
