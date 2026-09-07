@@ -25,6 +25,7 @@ export interface CoreTierDefinition {
   glowColorBeta: string;
   scoreValue: number;
   audioFreq: number; // Hz for harmonic synthesizer
+  queenTitle: string;
 }
 
 export interface AccretionEntity {

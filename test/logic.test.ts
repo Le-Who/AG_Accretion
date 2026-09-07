@@ -25,6 +25,15 @@ describe('Tier Progression & Hierarchy', () => {
       }
     }
   });
+
+  it('defines casual Star Slime character personalities and Queen titles', () => {
+    expect(CORE_TIERS[1].name).toBe('Cherry Berry');
+    expect(CORE_TIERS[2].name).toBe('Sunny Tangerine');
+    expect(CORE_TIERS[3].name).toBe('Star Lemon');
+    expect(CORE_TIERS[11].name).toBe('Star Titan');
+    expect(CORE_TIERS[1].queenTitle).toBe('Princess Cherry');
+    expect(CORE_TIERS[11].queenTitle).toBe('Galaxy Mother');
+  });
 });
 
 describe('Deterministic RNG & Sequence Reproducibility', () => {
