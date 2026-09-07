@@ -7,7 +7,10 @@ import { MagneticFieldSystem } from './magneticField.js';
 export interface SimulationCallbacks {
   onMerge: (event: MergeEvent) => void;
   onCentralCoreLevelUp: (event: CentralCoreLevelUpEvent) => void;
-  onCollisionImpact: (intensity: number) => void;
+  onCollisionImpact: (
+    intensity: number,
+    contact?: { bodyAId: number; bodyBId: number; normalX: number; normalY: number }
+  ) => void;
   onHazardStateChange: (inHazard: boolean, maxDistFromCenter: number) => void;
 }
 
@@ -148,13 +151,21 @@ export class PhysicsSimulation {
             bodyB
           });
         }
+      const dx = bodyB.position.x - bodyA.position.x;
+      const dy = bodyB.position.y - bodyA.position.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+      if (relSpeed > 0.4) {
+        this.callbacks.onCollisionImpact(Math.min(relSpeed / 5.0, 1.0), {
+          bodyAId: bodyA.id,
+          bodyBId: bodyB.id,
+          normalX: dx / dist,
+          normalY: dy / dist
+        });
       }
     }
-
-    if (maxSpeed > 1.2) {
-      this.callbacks.onCollisionImpact(Math.min(maxSpeed / 8.0, 1.0));
-    }
   }
+}
 
   public spawnCore(
     x: number,

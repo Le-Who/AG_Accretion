@@ -116,7 +116,17 @@ class AccretionGame {
     this.simulation = new PhysicsSimulation({
       onMerge: (event: MergeEvent) => this.handleMerge(event),
       onCentralCoreLevelUp: (event: CentralCoreLevelUpEvent) => this.handleCentralCoreLevelUp(event),
-      onCollisionImpact: (intensity: number) => this.soundEngine.playImpact(intensity),
+      onCollisionImpact: (intensity, contact) => {
+        this.soundEngine.playImpact(intensity);
+        if (contact && this.renderer) {
+          this.renderer.getSquishSystem().onCollisionImpact(
+            contact.bodyAId,
+            contact.bodyBId,
+            { x: contact.normalX, y: contact.normalY },
+            intensity * 14.0
+          );
+        }
+      },
       onHazardStateChange: (inHazard: boolean) => this.gameState.setHazardState(inHazard)
     });
 
@@ -227,21 +237,21 @@ class AccretionGame {
     this.gameState.handleCentralCoreLevelUp(event);
 
     const tierDef = CORE_TIERS[event.newTier] || CORE_TIERS[1];
-    const particleColor = tierDef.colorBaseAlpha;
-
     const cx = GAME_CONFIG.CENTER_X;
     const cy = GAME_CONFIG.CENTER_Y;
 
-    this.particles.emitMerge(cx, cy, particleColor, true);
+    this.particles.emitHearts(cx, cy);
+    this.particles.emitMerge(cx, cy, '#ff3b77', true);
     this.particles.emitFluxPulseWave(cx, cy);
-    this.soundEngine.playMerge(event.newTier, true, this.gameState.getScore());
+    this.soundEngine.playLevelUp();
+    this.renderer.getSquishSystem().triggerQueenImpact(0, 16.0);
 
-    const gainedText = `+${event.scoreGained} NUCLEUS EVOLVED!`;
-    this.particles.addFloatingText(cx, cy - 20, gainedText, '#fbbf24');
+    const gainedText = `+${event.scoreGained} QUEEN EVOLVED!`;
+    this.particles.addFloatingText(cx, cy - 20, gainedText, '#ffd700');
 
     this.showFeedbackBanner(
-      `NUCLEUS EVOLVED: TIER ${event.newTier}`,
-      `${tierDef.name} (${tierDef.codename}) Anchored!`
+      `QUEEN EVOLVED: LV.${event.newTier}`,
+      `${tierDef.queenTitle} (${tierDef.name}) Blessed!`
     );
   }
 
@@ -253,13 +263,13 @@ class AccretionGame {
     window.clearTimeout(this.feedbackTimeout);
     this.feedbackTimeout = window.setTimeout(() => {
       this.feedbackBanner.classList.add('hidden');
-    }, 1900);
+    }, 2200);
   }
 
   private updateCentralCoreUI(tier: number): void {
     const tierDef = CORE_TIERS[tier] || CORE_TIERS[1];
     if (this.nucleusTierDisplay) {
-      this.nucleusTierDisplay.textContent = `T${tier} ${tierDef.codename}`;
+      this.nucleusTierDisplay.textContent = `👑 LV.${tier} ${tierDef.name}`;
     }
   }
 

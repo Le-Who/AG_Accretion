@@ -58,7 +58,7 @@ export class ParticleSystem {
   }
 
   public emitMerge(x: number, y: number, color: string, isResonant: boolean): void {
-    const count = isResonant ? 36 : 20;
+    const count = isResonant ? 40 : 22;
 
     for (let i = 0; i < count; i++) {
       if (this.particles.length >= this.MAX_PARTICLES) break;
@@ -66,32 +66,31 @@ export class ParticleSystem {
       const angle = Math.random() * Math.PI * 2;
       const speed = isResonant ? (2.5 + Math.random() * 5.0) : (1.5 + Math.random() * 3.5);
 
-      if (isResonant && i < 12) {
-        // Implosion suction particles
-        const dist = 60 + Math.random() * 80;
+      if (isResonant && i < 16) {
+        // Rainbow Confetti
+        const confettiColors = ['#ff3b77', '#ff8800', '#ffd000', '#10b981', '#06b6d4', '#8b5cf6', '#ec4899'];
+        const confettiColor = confettiColors[i % confettiColors.length];
         this.particles.push({
-          x: x + Math.cos(angle) * dist,
-          y: y + Math.sin(angle) * dist,
-          vx: 0,
-          vy: 0,
-          radius: 3.5 + Math.random() * 2.5,
-          color,
+          x,
+          y,
+          vx: Math.cos(angle) * speed * 1.3,
+          vy: Math.sin(angle) * speed * 1.3 - 2.0, // Initial pop upwards
+          radius: 3.5 + Math.random() * 3.0,
+          color: confettiColor,
           alpha: 1.0,
-          decay: 0.03,
+          decay: 0.015,
           life: 0,
-          maxLife: 350 + Math.random() * 200,
-          type: 'IMPLODE',
-          targetX: x,
-          targetY: y
+          maxLife: 600 + Math.random() * 400,
+          type: 'SPARK'
         });
       } else {
-        // Radiating sparks
+        // Radiating sweet sparks
         this.particles.push({
           x,
           y,
           vx: Math.cos(angle) * speed,
           vy: Math.sin(angle) * speed,
-          radius: 2.0 + Math.random() * 3.0,
+          radius: 2.0 + Math.random() * 2.8,
           color,
           alpha: 1.0,
           decay: 0.02,
@@ -116,6 +115,31 @@ export class ParticleSystem {
       maxLife: 420,
       type: 'RING'
     });
+  }
+
+  public emitHearts(x: number, y: number): void {
+    const heartColors = ['#ff3b77', '#ff70a6', '#f43f5e', '#fb7185', '#ffd700'];
+    for (let i = 0; i < 24; i++) {
+      if (this.particles.length >= this.MAX_PARTICLES) break;
+
+      const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
+      const speed = 2.0 + Math.random() * 4.0;
+      const color = heartColors[i % heartColors.length];
+
+      this.particles.push({
+        x: x + (Math.random() - 0.5) * 20,
+        y: y + (Math.random() - 0.5) * 20,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        radius: 3.5 + Math.random() * 3.0,
+        color,
+        alpha: 1.0,
+        decay: 0.015,
+        life: 0,
+        maxLife: 700 + Math.random() * 400,
+        type: 'SPARK'
+      });
+    }
   }
 
   public emitFluxPulseWave(cx: number, cy: number): void {

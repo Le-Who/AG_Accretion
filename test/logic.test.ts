@@ -283,3 +283,39 @@ describe('Physics Simulation & Central Core Radial Accretion', () => {
     expect(sim.getCentralEntity().radius).toBe(CORE_TIERS[3].radius);
   });
 });
+
+describe('JellyMesh 2.5D Soft-Body Deformation Engine', () => {
+  it('indents contact sector and bulges perpendicular sector preserving volume upon impact', async () => {
+    const { JellyMesh } = await import('../src/render/jellyMesh.js');
+    const mesh = new JellyMesh(30);
+
+    // Initial state: 12 vertices all at base radius 30
+    const initialRadii = mesh.getRadii();
+    expect(initialRadii.length).toBe(12);
+    for (const r of initialRadii) {
+      expect(r).toBeCloseTo(30, 2);
+    }
+
+    // Impact from top (angle = -PI/2)
+    mesh.applyImpact(-Math.PI / 2, 8.0);
+    mesh.step(0.03);
+
+    const indentedRadii = mesh.getRadii();
+    // Vertex 9 is at angle 3*PI/2 == -PI/2 (top)
+    // Vertices near impact should be indented (< 30)
+    expect(indentedRadii[9]).toBeLessThan(30);
+
+    // Perpendicular vertices (left/right, index 0 and 6) should bulge (> 30)
+    expect(indentedRadii[0]).toBeGreaterThan(30);
+    expect(indentedRadii[6]).toBeGreaterThan(30);
+
+    // After settling over time, should return close to rest radius 30
+    for (let i = 0; i < 60; i++) {
+      mesh.step(0.03);
+    }
+    const settledRadii = mesh.getRadii();
+    for (const r of settledRadii) {
+      expect(r).toBeCloseTo(30, 0.5);
+    }
+  });
+});

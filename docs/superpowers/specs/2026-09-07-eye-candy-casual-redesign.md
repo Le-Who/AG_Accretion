@@ -56,21 +56,28 @@ Each tier has distinct silhouette features, color story, and personality:
 
 ---
 
-## 3. Asset Generation & Chroma-Key Processing Pipeline
+## 3. Mathematical 2.5D Jelly Physics & Render Architecture
 
-### 3.1 Isolated Asset Generation
-- Using `generate_image`, create individual high-resolution 3D-styled rendered icons for key slime tiers and the Queen Slime.
-- Prompt structure:
-  - Subject: Single isolated 3D cartoon slime creature, glossy translucent jelly texture, sub-surface scattering, cute Pixar/Nintendo style, round glossy eyes.
-  - Background: Flat uniform solid magenta `#FF00FF` background with zero shadows on the floor.
-  - Aspect ratio: `1:1`.
+### 3.1 Contact Surface Denting & Volume-Preserving Splines
+Each slime's contour is governed by 8–12 radial harmonic control vertices $P_i(\theta_i, r_i)$:
+- In rest state, $r_i = R_0 \cdot (1 + \text{breathing}(t))$.
+- When colliding or pressing against neighboring slimes or the central Queen:
+  - Vertices in the contact sector indent: $r_i \leftarrow r_i - \Delta_{\text{indent}} \cdot \cos^2(\Delta\theta)$.
+  - Conservation of jelly volume: non-contact perpendicular vertices bulge outward: $r_j \leftarrow r_j + \frac{\Delta_{\text{indent}}}{2}$.
+- The smoothed perimeter is drawn with continuous cubic Bezier curves (`ctx.bezierCurveTo`).
+- Contact impacts trigger a damped harmonic wobble: $\delta(t) = A e^{-\zeta \omega t} \cos(\omega t)$.
 
-### 3.2 Automated Chroma-Key Extraction Tool (`scripts/extract-sprites.js`)
-- Node.js script using canvas or sharp/pure pixel analysis to process generated images:
-  - Reads image files from the artifacts directory or generated assets.
-  - Scans pixels: if pixel color matches `#FF00FF` (within Euclidean tolerance with soft edge feathering), sets alpha to 0.
-  - Trims to bounding box and writes optimized transparent PNGs into `public/assets/slimes/`.
-  - Built-in procedural high-fidelity fallback generator on Canvas 2D ensuring instant runtime availability of all 11 tiers with 3D spherical shading, specular reflections, sub-surface glow, and cute animated faces.
+### 3.2 Dynamic 2.5D Spherical Lighting
+- Keylight is fixed at top-left in global space:
+  - Subsurface scattering gradient aligns with the global keylight, independent of body rotation.
+  - Primary and secondary specular gloss spots slide across the deforming jelly surface, maintaining true 3D optical realism.
+
+### 3.3 Decoupled Animated Facial Rig & Secondary Motion
+- Eyes, mouth, and blush are rendered on an independent decoupled layer:
+  - Pupils track the central Queen and nearby colliding bodies.
+  - Blink cycles every 3–6s, squint on heavy impact.
+  - Queen Slime opens her mouth wide in joyful anticipation when a matching-tier slime enters close range.
+  - Secondary inertia: facial features and the Queen's golden crown lag behind body acceleration and jiggle on an elastic spring.
 
 ---
 

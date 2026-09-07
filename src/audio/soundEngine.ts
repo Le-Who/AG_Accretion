@@ -57,24 +57,24 @@ export class SoundEngine {
     const gain = this.ctx.createGain();
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(580, t);
-    osc.frequency.exponentialRampToValueAtTime(140, t + 0.12);
+    osc.frequency.setValueAtTime(420, t);
+    osc.frequency.exponentialRampToValueAtTime(680, t + 0.10); // Happy rising pop
 
-    gain.gain.setValueAtTime(0.4, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    gain.gain.setValueAtTime(0.35, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
 
     osc.connect(gain);
     gain.connect(this.masterGain);
 
     osc.start(t);
-    osc.stop(t + 0.13);
+    osc.stop(t + 0.11);
   }
 
   public playImpact(intensity: number): void {
     if (this.isMuted) return;
     const now = performance.now();
     // Throttle impact sounds to max 12 per second to avoid audio hash
-    if (now - this.lastImpactTime < 80) return;
+    if (now - this.lastImpactTime < 75) return;
     this.lastImpactTime = now;
 
     this.initContext();
@@ -84,19 +84,20 @@ export class SoundEngine {
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(90 + intensity * 60, t);
-    osc.frequency.exponentialRampToValueAtTime(40, t + 0.08);
+    osc.type = 'sine';
+    // Warm marimba pop
+    osc.frequency.setValueAtTime(320 + intensity * 180, t);
+    osc.frequency.exponentialRampToValueAtTime(160, t + 0.07);
 
-    const vol = Math.min(0.35, intensity * 0.4);
+    const vol = Math.min(0.28, intensity * 0.3);
     gain.gain.setValueAtTime(vol, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
 
     osc.connect(gain);
     gain.connect(this.masterGain);
 
     osc.start(t);
-    osc.stop(t + 0.09);
+    osc.stop(t + 0.08);
   }
 
   public playMerge(tier: number, isResonant: boolean, combo: number): void {
@@ -237,6 +238,34 @@ export class SoundEngine {
       osc.start(t);
       osc.stop(t + 0.95);
     }
+  }
+
+  public playLevelUp(): void {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx || !this.masterGain) return;
+
+    const t = this.ctx.currentTime;
+    // Triumphant ascending major arpeggio fanfare (C5 - E5 - G5 - C6)
+    const notes = [523.25, 659.25, 783.99, 1046.50];
+
+    notes.forEach((freq, idx) => {
+      const noteTime = t + idx * 0.08;
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, noteTime);
+
+      gain.gain.setValueAtTime(0.28, noteTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.45);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+
+      osc.start(noteTime);
+      osc.stop(noteTime + 0.5);
+    });
   }
 
   public playClick(): void {

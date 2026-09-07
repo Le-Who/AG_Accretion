@@ -3,67 +3,66 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>ACCRETION: ZERO-POINT | Subatomic Nucleus Containment</title>
-    <meta name="description" content="An original radial physics accretion game. Launch exotic matter cores toward the central nucleus, manage magnetic polarity fields, and trigger resonant fusions." />
+    <title>STAR SLIME SANCTUARY | Cosmic Jelly Orbit</title>
+    <meta name="description" content="A juicy, adorable casual radial drop-and-merge game. Launch bouncy jelly slimes toward the royal Slime Queen, merge slimes to evolve the Queen, and pop super bursts!" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <div id="app" class="game-container">
-      <!-- Top Telemetry Bar -->
+      <!-- Top Casual Header Bar -->
       <header class="telemetry-bar">
         <div class="brand-group">
           <div class="logo-symbol">
-            <span class="logo-dot"></span>
-            <div class="logo-ring"></div>
+            <span class="logo-heart">💖</span>
           </div>
           <div class="brand-text">
-            <h1 class="game-title">ACCRETION</h1>
-            <span class="game-subtitle">ZERO-POINT NUCLEUS</span>
+            <h1 class="game-title">STAR SLIME</h1>
+            <span class="game-subtitle">SANCTUARY</span>
           </div>
         </div>
 
         <div class="stats-group">
           <div class="stat-card nucleus-card" id="nucleus-card">
-            <span class="stat-label">NUCLEUS LEVEL</span>
-            <span id="nucleus-tier-display" class="stat-value">T1 SPK</span>
+            <span class="stat-label">👑 QUEEN LEVEL</span>
+            <span id="nucleus-tier-display" class="stat-value">👑 LV.1 Princess</span>
           </div>
           <div class="stat-card score-card">
-            <span class="stat-label">ENERGY YIELD</span>
+            <span class="stat-label">✨ SWEET SCORE</span>
             <span id="score-display" class="stat-value">0</span>
           </div>
           <div class="stat-card best-card">
-            <span class="stat-label">PEAK RECORD</span>
+            <span class="stat-label">🏆 BEST EVER</span>
             <span id="best-score-display" class="stat-value">0</span>
           </div>
           <div class="stat-card combo-card" id="combo-card">
-            <span class="stat-label">RESONANCE</span>
+            <span class="stat-label">🎉 JOY COMBO</span>
             <span id="combo-display" class="stat-value">1.0x</span>
           </div>
         </div>
 
         <div class="controls-group">
           <button id="btn-sound" class="icon-btn" title="Toggle Sound (M)" aria-label="Toggle Sound">
-            <svg id="sound-icon-on" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <svg id="sound-icon-on" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
               <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
             </svg>
-            <svg id="sound-icon-off" class="hidden" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <svg id="sound-icon-off" class="hidden" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
               <line x1="23" y1="9" x2="17" y2="15"></line>
               <line x1="17" y1="9" x2="23" y2="15"></line>
             </svg>
           </button>
-          <button id="btn-reset" class="icon-btn" title="Reset Containment (R)" aria-label="Reset Run">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <button id="btn-reset" class="icon-btn" title="Restart Sanctuary (R)" aria-label="Restart Run">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
               <path d="M3 3v5h5"></path>
             </svg>
           </button>
-          <button id="btn-info" class="icon-btn" title="System Briefing (?)" aria-label="Information Briefing">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <button id="btn-info" class="icon-btn" title="Sanctuary Guide (?)" aria-label="Sanctuary Guide">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>
               <line x1="12" y1="16" x2="12" y2="12"></line>
               <line x1="12" y1="8" x2="12.01" y2="8"></line>
@@ -74,19 +73,19 @@
 
       <!-- Tactical Sub-Header -->
       <div class="tactical-subbar">
-        <!-- Upcoming Core Sensor -->
+        <!-- Upcoming Slime Preview -->
         <div class="next-sensor-box">
-          <span class="subbar-label">UPCOMING CORE</span>
+          <span class="subbar-label">NEXT SLIME</span>
           <div class="next-preview-canvas-wrap">
             <canvas id="next-preview-canvas" width="60" height="60"></canvas>
-            <span id="next-polarity-badge" class="polarity-badge positive">+ALPHA</span>
+            <span id="next-polarity-badge" class="polarity-badge positive">✨ SUN</span>
           </div>
         </div>
 
-        <!-- Containment Integrity Perimeter Status Bar -->
+        <!-- Sanctuary Harmony Bar -->
         <div class="integrity-module" id="integrity-module">
           <div class="integrity-header">
-            <span class="subbar-label">CONTAINMENT INTEGRITY</span>
+            <span class="subbar-label">SANCTUARY HARMONY</span>
             <span id="integrity-text" class="integrity-percent">100%</span>
           </div>
           <div class="integrity-bar-track">
@@ -94,10 +93,10 @@
           </div>
         </div>
 
-        <!-- Singularity Flux Pulse -->
+        <!-- Rainbow Super Burst -->
         <div class="flux-module">
-          <button id="btn-flux-pulse" class="flux-pulse-btn" disabled title="Invert All Polarities (Spacebar)">
-            <span id="flux-btn-label">FLUX 0%</span>
+          <button id="btn-flux-pulse" class="flux-pulse-btn" disabled title="Invert Sun/Moon Slimes (Spacebar)">
+            <span id="flux-btn-label">BURST 0%</span>
           </button>
           <span id="flux-status-text" class="flux-status">CHARGING</span>
         </div>
@@ -116,24 +115,24 @@
       <!-- Quick Action / Touch Deck Bar -->
       <footer class="action-deck">
         <div class="keybind-hints">
-          <span><kbd>Mouse / Drag</kbd>: Aim Orbital Rail</span>
-          <span><kbd>Click</kbd> / <kbd>&darr;</kbd>: Launch Inward</span>
-          <span><kbd>Space</kbd>: Singularity Pulse</span>
+          <span><kbd>Mouse / Drag</kbd>: Aim Orbit</span>
+          <span><kbd>Click</kbd> / <kbd>&darr;</kbd>: Launch Slime</span>
+          <span><kbd>Space</kbd>: Super Burst</span>
         </div>
-        <button id="btn-deploy-touch" class="deck-btn deploy-touch-btn" aria-label="Launch Core">
-          LAUNCH INWARD
+        <button id="btn-deploy-touch" class="deck-btn deploy-touch-btn" aria-label="Launch Slime">
+          LAUNCH SLIME 🚀
         </button>
       </footer>
 
-      <!-- Modal: Game Over / Containment Breach -->
+      <!-- Modal: Game Over / Sanctuary Overflow -->
       <div id="gameover-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="gameover-title">
         <div class="modal-card gameover-card">
-          <h2 id="gameover-title" class="modal-title">CONTAINMENT BREACH</h2>
-          <p class="modal-desc">Accretion mass breached the outer containment perimeter.</p>
+          <h2 id="gameover-title" class="modal-title">SANCTUARY OVERFLOW 🌸</h2>
+          <p class="modal-desc">The slimes filled the celestial garden beyond the starlight border!</p>
           
           <div class="debrief-grid">
             <div class="debrief-item">
-              <span class="debrief-label">FINAL ENERGY</span>
+              <span class="debrief-label">FINAL SCORE</span>
               <span id="final-score" class="debrief-value highlight">0</span>
             </div>
             <div class="debrief-item">
@@ -141,25 +140,25 @@
               <span id="final-best" class="debrief-value">0</span>
             </div>
             <div class="debrief-item">
-              <span class="debrief-label">NUCLEUS EVOLVED</span>
+              <span class="debrief-label">QUEEN LEVEL</span>
               <span id="final-tier" class="debrief-value">Tier 1</span>
             </div>
             <div class="debrief-item">
-              <span class="debrief-label">RESONANT FUSIONS</span>
+              <span class="debrief-label">HARMONIC MERGES</span>
               <span id="final-resonant-count" class="debrief-value">0</span>
             </div>
             <div class="debrief-item">
-              <span class="debrief-label">PEAK COMBO</span>
+              <span class="debrief-label">TOP COMBO</span>
               <span id="final-max-combo" class="debrief-value">1.0x</span>
             </div>
             <div class="debrief-item">
-              <span class="debrief-label">FLUX PULSES</span>
+              <span class="debrief-label">SUPER BURSTS</span>
               <span id="final-flux-count" class="debrief-value">0</span>
             </div>
           </div>
 
           <button id="btn-restart" class="btn-primary" autofocus>
-            INITIALIZE NEW CONTAINMENT (R)
+            PLAY AGAIN 💖 (R)
           </button>
         </div>
       </div>
@@ -168,38 +167,38 @@
       <div id="briefing-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="briefing-title">
         <div class="modal-card briefing-card">
           <div class="briefing-header">
-            <h2 id="briefing-title" class="modal-title">NUCLEUS ACCRETION PROTOCOLS</h2>
+            <h2 id="briefing-title" class="modal-title">SANCTUARY HOW-TO-PLAY 💖</h2>
             <button id="btn-close-briefing" class="icon-btn" aria-label="Close Briefing">&times;</button>
           </div>
           
           <div class="briefing-content">
             <div class="briefing-section">
-              <h3>1. OBJECTIVE: NUCLEUS EVOLUTION</h3>
-              <p>In the center sits the <strong>Zero-Point Nucleus</strong>, starting at <strong>Tier 1</strong>. Launch incoming cores inward toward the nucleus. When surrounding cores in the cluster merge and reach the same size as the Nucleus, fusing into the central core <strong>levels up the Nucleus</strong> (Tier 1 &rarr; 11)! Keep the expanding mass within the circular perimeter.</p>
+              <h3>👑 1. FEED & EVOLVE THE SLIME QUEEN</h3>
+              <p>In the center sits the lovely <strong>Slime Queen</strong>, starting at <strong>Level 1</strong>. Launch incoming slimes toward her! When slimes in the cluster merge and reach the Queen's size, touching the Queen feeds her, <strong>leveling her up</strong> (Level 1 &rarr; 11)! Keep the garden happy and within the starlight ring.</p>
             </div>
 
             <div class="briefing-section">
-              <h3>2. MAGNETIC POLARITY & RESONANCE</h3>
-              <p>Cores carry magnetic dipole charges:</p>
+              <h3>✨ 2. SUN & MOON SLIMES</h3>
+              <p>Slimes come in two lovely types:</p>
               <ul class="polarity-list">
-                <li><strong class="text-amber">+ALPHA (Amber)</strong> & <strong class="text-cyan">-BETA (Cyan)</strong>: Like charges repel; opposite charges attract across distance!</li>
-                <li><strong>RESONANT FUSION</strong>: Merging two cores of the same tier with <strong class="text-accent">OPPOSITE polarities (+ and -)</strong> creates an implosive shockwave that pulls nearby matter inward toward the nucleus, yielding 2.5&times; energy.</li>
-                <li><strong>FORCED FUSION</strong>: Merging two cores of the same tier with <strong>SAME polarity (+/+ or -/-)</strong> yields standard score.</li>
+                <li><strong class="text-amber">✨ SUN (Gold)</strong> & <strong class="text-cyan">🌙 MOON (Starlight)</strong>: Same types gently repel; opposite types attract across space!</li>
+                <li><strong>HARMONIC FUSION</strong>: Merging two slimes of the same tier with <strong class="text-accent">OPPOSITE types (Sun + Moon)</strong> unleashes rainbow confetti, pulling nearby slimes toward the center with 2.5&times; score bonus!</li>
+                <li><strong>SWEET FUSION</strong>: Merging two slimes of the SAME type yields standard score.</li>
               </ul>
             </div>
 
             <div class="briefing-section">
-              <h3>3. SINGULARITY FLUX PULSE</h3>
-              <p>Press <kbd>Space</kbd> or tap <strong>FLUX PULSE</strong> when charged to invert all polarities on the board (+ becomes -, - becomes +), triggering a cascading magnetic collapse toward the central core!</p>
+              <h3>🌈 3. RAINBOW SUPER BURST</h3>
+              <p>Press <kbd>Space</kbd> or tap <strong>SUPER BURST</strong> when charged to flip all Sun/Moon types, triggering a joyful chain-reaction merge cascade toward the Queen!</p>
             </div>
 
             <div class="briefing-section">
-              <h3>4. CONTAINMENT BOUNDARY</h3>
-              <p>If accreted matter pushes past the outer dashed perimeter ring, Containment Integrity drops. Fuse or shift cores inward before a total breach occurs.</p>
+              <h3>🌸 4. STARLIGHT GARDEN PERIMETER</h3>
+              <p>If your slimes push past the outer glowing floral ring, Sanctuary Harmony decreases. Merge slimes to keep the garden cozy and calm.</p>
             </div>
           </div>
 
-          <button id="btn-dismiss-briefing" class="btn-primary">UNDERSTOOD</button>
+          <button id="btn-dismiss-briefing" class="btn-primary">START PLAYING ✨</button>
         </div>
       </div>
     </div>
