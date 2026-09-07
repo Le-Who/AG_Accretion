@@ -6,6 +6,7 @@ import { PhysicsSimulation } from '../physics/simulation.js';
 import { ParticleSystem } from './particleSystem.js';
 import { SquishSystem } from './squishSystem.js';
 import { ProceduralSlimeRenderer } from './proceduralSlimeRenderer.js';
+import { gazeOffset } from './gaze.js';
 
 interface Star {
   x: number;
@@ -16,6 +17,11 @@ interface Star {
 }
 
 export class CanvasRenderer {
+  private background: HTMLCanvasElement | null = null;
+  private eyeTracking = true;
+  private pointer: { x: number; y: number } | null = null;
+
+  public setEyeTracking(enabled: boolean): void { this.eyeTracking = enabled; }
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private previewCanvas: HTMLCanvasElement;
@@ -35,6 +41,12 @@ export class CanvasRenderer {
     this.initStars();
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    new ResizeObserver(() => this.resize()).observe(canvas.parentElement!);
+    window.addEventListener('pointermove', event => {
+      const rect = canvas.getBoundingClientRect();
+      this.pointer = { x: (event.clientX - rect.left) / rect.width * GAME_CONFIG.CHAMBER_WIDTH, y: (event.clientY - rect.top) / rect.height * GAME_CONFIG.CHAMBER_HEIGHT };
+    });
+    document.documentElement.addEventListener('pointerleave', () => { this.pointer = null; });
   }
 
   private initStars(): void {
@@ -62,7 +74,7 @@ export class CanvasRenderer {
 
     const availableWidth = container.clientWidth - 16;
     const availableHeight = container.clientHeight - 16;
-    const targetSize = Math.min(availableWidth, availableHeight, 640);
+    const targetSize = Math.max(1, Math.min(availableWidth, availableHeight));
 
     this.canvas.style.width = `${Math.floor(targetSize)}px`;
     this.canvas.style.height = `${Math.floor(targetSize)}px`;
@@ -115,10 +127,9 @@ export class CanvasRenderer {
     }
 
     // 5. Active Accreted Slimes in Chamber (with 2.5D harmonic mesh)
-    this.drawActiveSlimes(ctx, simulation, gameState.centralCoreTier);
-
-    // 6. Queen Slime at Chamber Center
+    // Draw the Queen behind the slimes, so her aura and crown never obscure them.
     this.drawQueenSlime(ctx, cx, cy, simulation, gameState);
+    this.drawActiveSlimes(ctx, simulation, gameState.centralCoreTier);
 
     // 7. Aiming Slingshot at Orbital Perimeter
     if (gameState.canLaunch()) {
@@ -135,6 +146,25 @@ export class CanvasRenderer {
   }
 
   private drawCozyStarryBackground(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+    if (!this.background) {
+      this.background = document.createElement('canvas');
+      this.background.width = GAME_CONFIG.CHAMBER_WIDTH;
+      this.background.height = GAME_CONFIG.CHAMBER_HEIGHT;
+      this.paintBackground(this.background.getContext('2d')!, cx, cy);
+    }
+    ctx.drawImage(this.background, 0, 0);
+
+    // Twinkling Star Field
+    for (const star of this.stars) {
+      const alpha = 0.35 + Math.sin(this.animTime * star.speed + star.phase) * 0.35;
+      ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(2)})`;
+      ctx.beginPath();
+      ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  private paintBackground(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
     // Deep warm cosmic sky
     const bgGrad = ctx.createRadialGradient(cx, cy, 40, cx, cy, 350);
     bgGrad.addColorStop(0, '#1c1538');
@@ -152,15 +182,6 @@ export class CanvasRenderer {
     ctx.beginPath();
     ctx.arc(cx, cy, 220, 0, Math.PI * 2);
     ctx.fill();
-
-    // Twinkling Star Field
-    for (const star of this.stars) {
-      const alpha = 0.35 + Math.sin(this.animTime * star.speed + star.phase) * 0.35;
-      ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(2)})`;
-      ctx.beginPath();
-      ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-      ctx.fill();
-    }
   }
 
   private drawSoftOrbitRings(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
@@ -277,6 +298,7 @@ export class CanvasRenderer {
 
     // 3. Render the Queen Slime itself via Procedural 2.5D Slime Renderer
     const expr = this.squishSystem.getQueenExpression();
+    expr.gaze = gazeOffset(cx, cy, expr.rotation, this.eyeTracking ? this.pointer : null);
     ProceduralSlimeRenderer.renderSlime(
       ctx,
       0,
@@ -304,14 +326,16 @@ export class CanvasRenderer {
       if (entity.isCentralCore) continue;
       const body = bodies.get(bodyId);
       if (!body) continue;
+      const pose = simulation.getRenderPose(bodyId)!;
 
       const expr = this.squishSystem.getExpression(bodyId);
-      expr.rotation = body.angle;
+      expr.rotation = pose.angle;
+      expr.gaze = gazeOffset(pose.x, pose.y, expr.rotation, this.eyeTracking ? this.pointer : null);
 
       ProceduralSlimeRenderer.renderSlime(
         ctx,
-        body.position.x,
-        body.position.y,
+        pose.x,
+        pose.y,
         entity.radius,
         entity.tier,
         entity.polarity,
@@ -322,7 +346,7 @@ export class CanvasRenderer {
 
       // Highlight slimes matching the Queen's tier (ready to feed the Queen!)
       if (entity.tier === centralCoreTier) {
-        this.drawQueenMatchingBeacon(ctx, body.position.x, body.position.y, entity.radius);
+        this.drawQueenMatchingBeacon(ctx, pose.x, pose.y, entity.radius);
       }
     }
   }
@@ -449,7 +473,8 @@ export class CanvasRenderer {
         mouthOpen: false,
         squishScaleX: 1,
         squishScaleY: 1,
-        rotation: 0
+        rotation: 0,
+        gaze: gazeOffset(lx, ly, angle + Math.PI / 2, this.eyeTracking ? this.pointer : null)
       },
       false,
       this.animTime

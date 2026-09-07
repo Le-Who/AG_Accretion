@@ -110,6 +110,13 @@ export class JellyMesh {
     return list;
   }
 
+  /** No allocation in the per-frame squish path. */
+  public getAxisScale(): number {
+    const horizontal = this.baseRadius + (this.displacements[0] + this.displacements[6]) * .5;
+    const vertical = this.baseRadius + (this.displacements[3] + this.displacements[9]) * .5;
+    return Math.max(.88, Math.min(1.12, Math.sqrt(horizontal / vertical)));
+  }
+
   public getPoints(): Array<{ x: number; y: number }> {
     const n = JellyMesh.VERTEX_COUNT;
     const pts: Array<{ x: number; y: number }> = [];

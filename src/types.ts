@@ -29,6 +29,7 @@ export interface CoreTierDefinition {
 }
 
 export interface AccretionEntity {
+  mergeBorn?: boolean;
   id: string;
   bodyId: number;
   tier: number;
@@ -42,6 +43,7 @@ export interface AccretionEntity {
 }
 
 export interface MergeEvent {
+  pairBloom?: boolean;
   entityA: AccretionEntity;
   entityB: AccretionEntity;
   fusionType: 'RESONANT' | 'FORCED';
@@ -72,7 +74,9 @@ export interface Particle {
   decay: number;
   life: number;
   maxLife: number;
-  type?: 'SPARK' | 'RING' | 'IMPLODE';
+  type?: 'SPARK' | 'RING' | 'IMPLODE' | 'CONFETTI' | 'HEART';
+  rotation?: number;
+  spin?: number;
   targetX?: number;
   targetY?: number;
 }

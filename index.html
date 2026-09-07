@@ -20,24 +20,16 @@
 
       <!-- Top Casual Header Bar -->
       <header class="telemetry-bar">
-        <div class="brand-group">
-          <div class="logo-symbol">
-            <span class="logo-heart">💖</span>
-          </div>
-          <div class="brand-text">
-            <h1 class="game-title">STAR SLIME</h1>
-            <span class="game-subtitle">SANCTUARY</span>
-          </div>
-        </div>
-
-        <div class="stats-group">
+        <details class="hud-dropdown score-dropdown">
+          <summary class="stat-card score-card" aria-label="Score details">
+            <span class="stat-label">SCORE ▾</span>
+            <span id="score-display" class="stat-value">0</span>
+          </summary>
+          <div class="dropdown-panel stats-group">
+          <span class="menu-pause-note">Paused · close to resume</span>
           <div class="stat-card nucleus-card" id="nucleus-card">
             <span class="stat-label">👑 QUEEN LEVEL</span>
             <span id="nucleus-tier-display" class="stat-value">👑 LV.1 Princess</span>
-          </div>
-          <div class="stat-card score-card">
-            <span class="stat-label">✨ SWEET SCORE</span>
-            <span id="score-display" class="stat-value">0</span>
           </div>
           <div class="stat-card best-card">
             <span class="stat-label">🏆 BEST EVER</span>
@@ -47,9 +39,13 @@
             <span class="stat-label">🎉 JOY COMBO</span>
             <span id="combo-display" class="stat-value">1.0x</span>
           </div>
-        </div>
+          </div>
+        </details>
 
-        <div class="controls-group">
+        <details class="hud-dropdown settings-dropdown">
+          <summary class="icon-btn" aria-label="Settings" title="Settings">⚙</summary>
+          <div class="dropdown-panel controls-group">
+          <span class="menu-pause-note">Paused · close to resume</span>
           <button id="btn-sound" class="icon-btn" title="Toggle Sound (M)" aria-label="Toggle Sound">
             <svg id="sound-icon-on" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
@@ -74,11 +70,13 @@
               <line x1="12" y1="8" x2="12.01" y2="8"></line>
             </svg>
           </button>
-        </div>
-      </header>
-
-      <!-- Tactical Sub-Header -->
-      <div class="tactical-subbar">
+          <label class="eye-setting"><input id="eye-tracking" type="checkbox" checked> Follow cursor</label>
+          <label class="eye-setting"><input id="music-enabled" type="checkbox" checked> Music</label>
+          <label class="music-volume" for="music-volume">Music volume
+            <input id="music-volume" type="range" min="0" max="100" value="28">
+          </label>
+          </div>
+        </details>
         <!-- Upcoming Slime Preview -->
         <div class="next-sensor-box">
           <span class="subbar-label">NEXT SLIME</span>
@@ -91,7 +89,7 @@
         <!-- Sanctuary Harmony Bar -->
         <div class="integrity-module" id="integrity-module">
           <div class="integrity-header">
-            <span class="subbar-label">SANCTUARY HARMONY</span>
+            <span class="subbar-label">HARMONY</span>
             <span id="integrity-text" class="integrity-percent">100%</span>
           </div>
           <div class="integrity-bar-track">
@@ -101,29 +99,17 @@
 
         <!-- Rainbow Super Burst -->
         <div class="flux-module">
-          <button id="btn-flux-pulse" class="flux-pulse-btn" disabled title="Invert Sun/Moon Slimes (Spacebar)">
-            <span id="flux-btn-label">BURST 0%</span>
+          <button id="btn-flux-pulse" class="flux-pulse-btn" disabled title="Merge matching pairs (Space)">
+            <span id="flux-btn-label">PAIR BLOOM 0%</span>
           </button>
           <span id="flux-status-text" class="flux-status">CHARGING</span>
         </div>
-      </div>
+      </header>
 
       <!-- Main Chamber Viewport -->
       <main class="chamber-viewport">
         <canvas id="game-canvas"></canvas>
       </main>
-
-      <!-- Quick Action / Touch Deck Bar -->
-      <footer class="action-deck">
-        <div class="keybind-hints">
-          <span><kbd>Mouse / Drag</kbd>: Aim Orbit</span>
-          <span><kbd>Click</kbd> / <kbd>&darr;</kbd>: Launch Slime</span>
-          <span><kbd>Space</kbd>: Super Burst</span>
-        </div>
-        <button id="btn-deploy-touch" class="deck-btn deploy-touch-btn" aria-label="Launch Slime">
-          LAUNCH SLIME 🚀
-        </button>
-      </footer>
 
       <!-- Modal: Game Over / Sanctuary Overflow -->
       <div id="gameover-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="gameover-title">
@@ -153,7 +139,7 @@
               <span id="final-max-combo" class="debrief-value">1.0x</span>
             </div>
             <div class="debrief-item">
-              <span class="debrief-label">SUPER BURSTS</span>
+              <span class="debrief-label">PAIR BLOOMS</span>
               <span id="final-flux-count" class="debrief-value">0</span>
             </div>
           </div>
@@ -189,13 +175,14 @@
             </div>
 
             <div class="briefing-section">
-              <h3>🌈 3. RAINBOW SUPER BURST</h3>
-              <p>Press <kbd>Space</kbd> or tap <strong>SUPER BURST</strong> when charged to flip all Sun/Moon types, triggering a joyful chain-reaction merge cascade toward the Queen!</p>
+              <h3>🌈 3. PAIR BLOOM</h3>
+              <p>Merge to charge. Press <kbd>Space</kbd> or tap <strong>PAIR BLOOM</strong> to bring every matching pair together with confetti! Sun or Moon: both work. Each existing pair grows one level; the Queen, unpaired slimes and level 11 stay put. No pairs? Keep your charge.</p>
             </div>
 
             <div class="briefing-section">
               <h3>🌸 4. STARLIGHT GARDEN PERIMETER</h3>
               <p>If your slimes push past the outer glowing floral ring, Sanctuary Harmony decreases. Merge slimes to keep the garden cozy and calm.</p>
+              <p>Mouse or drag to aim; release on the field to launch. Keyboard: A/D or ←/→ to aim, Enter or ↓ to launch, Space for Pair Bloom, M for sound, R to restart. Sun has a gold sun badge; Moon has a blue crescent badge. Cursor-following eyes can be switched off in Settings.</p>
             </div>
           </div>
 

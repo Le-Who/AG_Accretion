@@ -8,7 +8,7 @@ export const GAME_CONFIG = {
   // Geometry & Radii
   CENTRAL_NUCLEUS_BASE_RADIUS: 15,
   CONTAINMENT_PERIMETER_RADIUS: 255, // Critical boundary threshold
-  LAUNCH_ORBIT_RADIUS: 292,          // Perimeter where launcher aims and deploys
+  LAUNCH_ORBIT_RADIUS: 276,          // Largest spawn + guide fits within the 320px half-chamber
 
   // Inward Accretion & Central Gravity
   CENTRAL_GRAVITY_COEFF: 0.0018,      // Radial inward gravitational pull

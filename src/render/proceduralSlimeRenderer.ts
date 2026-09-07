@@ -2,6 +2,7 @@ import { CORE_TIERS } from '../entities/coreTiers.js';
 import { Polarity } from '../types.js';
 
 export interface SlimeExpression {
+  gaze?: { x: number; y: number };
   blinkProgress: number; // 0 = open, 1 = fully closed
   mouthOpen: boolean;    // true when anticipating food/merge
   squishScaleX: number;  // horizontal deformation
@@ -34,6 +35,45 @@ export class ProceduralSlimeRenderer {
     ctx.rotate(expression.rotation);
     ctx.scale(expression.squishScaleX, expression.squishScaleY);
 
+    this.drawCachedSurface(ctx, radius, tierNumber, polarity, baseColor, glowColor);
+    this.renderAccessories(ctx, radius, tierNumber, isQueen, animTime);
+
+    // 6. Cute Anime Face
+    this.renderFace(ctx, radius, expression, isQueen, animTime);
+
+    // 7. Sun / Moon Polarity Particles / Emblems
+    this.renderPolarityAccents(ctx, radius, isSun, animTime);
+
+    // 8. Queen Slime Golden Royal Crown
+    if (isQueen) {
+      this.renderQueenCrown(ctx, radius, animTime);
+    }
+
+    ctx.restore();
+  }
+
+  // At most 22 small textures (11 tiers × two polarities), reused by previews too.
+  private static surfaces = new Map<string, HTMLCanvasElement>();
+
+  private static drawCachedSurface(ctx: CanvasRenderingContext2D, radius: number, tier: number, polarity: Polarity, baseColor: string, glowColor: string): void {
+    const key = `${tier}:${polarity}`;
+    let surface = this.surfaces.get(key);
+    const baseRadius = CORE_TIERS[tier]?.radius || CORE_TIERS[1].radius;
+    const extent = baseRadius * 1.4;
+    if (!surface) {
+      surface = document.createElement('canvas');
+      surface.width = surface.height = Math.ceil(extent * 4);
+      const paint = surface.getContext('2d')!;
+      paint.translate(surface.width / 2, surface.height / 2);
+      paint.scale(2, 2);
+      this.drawSurface(paint, baseRadius, baseColor, glowColor);
+      this.surfaces.set(key, surface);
+    }
+    const size = surface.width / 2 * radius / baseRadius;
+    ctx.drawImage(surface, -size / 2, -size / 2, size, size);
+  }
+
+  private static drawSurface(ctx: CanvasRenderingContext2D, radius: number, baseColor: string, glowColor: string): void {
     // 1. Soft Outer Jelly Aura Glow
     const auraGrad = ctx.createRadialGradient(0, 0, radius * 0.7, 0, 0, radius * 1.35);
     auraGrad.addColorStop(0, glowColor);
@@ -68,9 +108,6 @@ export class ProceduralSlimeRenderer {
     ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.fill();
 
-    // 4. Tier-Specific Cute Accessories
-    this.renderAccessories(ctx, radius, tierNumber, isQueen, animTime);
-
     // 5. Specular Highlights (Top Gloss)
     // Large primary soft highlight
     ctx.save();
@@ -87,19 +124,6 @@ export class ProceduralSlimeRenderer {
     ctx.beginPath();
     ctx.arc(lx * 0.5, ly * 1.2, radius * 0.09, 0, Math.PI * 2);
     ctx.fill();
-
-    // 6. Cute Anime Face
-    this.renderFace(ctx, radius, expression, isQueen, animTime);
-
-    // 7. Sun / Moon Polarity Particles / Emblems
-    this.renderPolarityAccents(ctx, radius, isSun, animTime);
-
-    // 8. Queen Slime Golden Royal Crown
-    if (isQueen) {
-      this.renderQueenCrown(ctx, radius, animTime);
-    }
-
-    ctx.restore();
   }
 
   private static renderFace(
@@ -130,6 +154,8 @@ export class ProceduralSlimeRenderer {
     ctx.fill();
 
     // Eyes
+    ctx.save();
+    ctx.translate((expression.gaze?.x || 0) * radius * .07, (expression.gaze?.y || 0) * radius * .055);
     if (blink > 0.8) {
       // Closed happy arc eyes (^_^)
       ctx.strokeStyle = '#1e1b4b';
@@ -179,6 +205,7 @@ export class ProceduralSlimeRenderer {
       ctx.fill();
     }
 
+    ctx.restore();
     // Mouth
     ctx.strokeStyle = '#1e1b4b';
     ctx.lineWidth = Math.max(1.2, radius * 0.05);
@@ -201,9 +228,9 @@ export class ProceduralSlimeRenderer {
   }
 
   private static renderQueenCrown(ctx: CanvasRenderingContext2D, radius: number, animTime: number): void {
-    const crownW = radius * 0.72;
-    const crownH = radius * 0.45;
-    const crownY = -radius * 0.95;
+    const crownW = Math.min(36, radius * 0.72);
+    const crownH = Math.min(15, radius * 0.25);
+    const crownY = -radius * 0.60;
 
     ctx.save();
     ctx.translate(0, crownY);
@@ -230,7 +257,7 @@ export class ProceduralSlimeRenderer {
     ctx.stroke();
 
     // Crown Jewels (Emerald, Ruby, Sapphire)
-    const jewelR = Math.max(1.8, radius * 0.07);
+    const jewelR = Math.max(1.2, crownW * 0.075);
 
     // Left jewel (Sapphire)
     ctx.fillStyle = '#38bdf8';
@@ -254,7 +281,11 @@ export class ProceduralSlimeRenderer {
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(0, -crownH * 1.05, jewelR * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
     ctx.arc(-crownW * 0.6, -crownH * 0.8, jewelR * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
     ctx.arc(crownW * 0.6, -crownH * 0.8, jewelR * 0.5, 0, Math.PI * 2);
     ctx.fill();
 
@@ -291,7 +322,7 @@ export class ProceduralSlimeRenderer {
       ctx.arc(-radius * 0.3, radius * 0.2, radius * 0.12, 0, Math.PI * 2);
       ctx.arc(radius * 0.35, radius * 0.3, radius * 0.08, 0, Math.PI * 2);
       ctx.fill();
-    } else if (tierNumber === 10 || tierNumber === 11) {
+    } else if ((tierNumber === 10 || tierNumber === 11) && !isQueen) {
       // Celestial planetary ring
       ctx.save();
       ctx.rotate(0.3);
@@ -308,23 +339,29 @@ export class ProceduralSlimeRenderer {
     ctx: CanvasRenderingContext2D,
     radius: number,
     isSun: boolean,
-    animTime: number
+    _animTime: number
   ): void {
     ctx.save();
+    const badgeR = Math.max(5, radius * .21);
+    ctx.translate(radius * .56, -radius * .52);
+    ctx.fillStyle = '#211936';
+    ctx.strokeStyle = isSun ? '#fbbf24' : '#7dd3fc';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, badgeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = ctx.strokeStyle;
     if (isSun) {
-      // Sun Sparkle: gold mini-star at top right
-      ctx.fillStyle = '#fbbf24';
-      const angle = animTime * 1.5;
-      const sx = Math.cos(angle) * (radius * 0.85);
-      const sy = Math.sin(angle) * (radius * 0.85);
-      this.drawStar(ctx, sx, sy, 4, radius * 0.14, radius * 0.06);
+      this.drawStar(ctx, 0, 0, 8, badgeR * .78, badgeR * .48);
     } else {
-      // Moon Frost: diamond star at top left
-      ctx.fillStyle = '#a5f3fc';
-      const angle = -animTime * 1.5;
-      const mx = Math.cos(angle) * (radius * 0.85);
-      const my = Math.sin(angle) * (radius * 0.85);
-      this.drawStar(ctx, mx, my, 4, radius * 0.14, radius * 0.06);
+      ctx.beginPath();
+      ctx.arc(0, 0, badgeR * .7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#211936';
+      ctx.beginPath();
+      ctx.arc(badgeR * .35, -badgeR * .2, badgeR * .62, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
   }

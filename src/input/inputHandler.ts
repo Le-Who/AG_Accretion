@@ -77,7 +77,7 @@ export class InputHandler {
 
   private bindKeyboardEvents(): void {
     window.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (['input', 'textarea'].includes((e.target as HTMLElement)?.tagName?.toLowerCase())) {
+      if (['input', 'textarea', 'button', 'summary', 'select'].includes((e.target as HTMLElement)?.tagName?.toLowerCase()) || document.querySelector('.modal-backdrop:not(.hidden), .hud-dropdown[open]')) {
         return;
       }
 

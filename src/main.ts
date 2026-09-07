@@ -5,6 +5,8 @@ import { PhysicsSimulation } from './physics/simulation.js';
 import { CanvasRenderer } from './render/renderer.js';
 import { ParticleSystem } from './render/particleSystem.js';
 import { SoundEngine } from './audio/soundEngine.js';
+import { MusicEngine } from './audio/musicEngine.js';
+import { MUSIC_TRACKS } from './audio/musicLibrary.js';
 import { InputHandler } from './input/inputHandler.js';
 import { DebugHarness } from './debug/debugHarness.js';
 import { CentralCoreLevelUpEvent, GameStatus, MergeEvent, Polarity } from './types.js';
@@ -16,6 +18,7 @@ class AccretionGame {
   private renderer: CanvasRenderer;
   private particles: ParticleSystem;
   private soundEngine: SoundEngine;
+  private music: MusicEngine;
   public inputHandler: InputHandler;
 
   // DOM Elements
@@ -58,7 +61,6 @@ class AccretionGame {
   private soundIconOn: SVGElement;
   private soundIconOff: SVGElement;
   private btnReset: HTMLButtonElement;
-  private btnDeployTouch: HTMLButtonElement;
 
   private lastTime: number = performance.now();
   private isRunning: boolean = true;
@@ -103,12 +105,18 @@ class AccretionGame {
     this.soundIconOn = document.getElementById('sound-icon-on') as unknown as SVGElement;
     this.soundIconOff = document.getElementById('sound-icon-off') as unknown as SVGElement;
     this.btnReset = document.getElementById('btn-reset') as HTMLButtonElement;
-    this.btnDeployTouch = document.getElementById('btn-deploy-touch') as HTMLButtonElement;
 
     const gameCanvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 
     // 2. Initialize Subsystems
     this.soundEngine = new SoundEngine();
+    this.music = new MusicEngine(MUSIC_TRACKS);
+    this.music.setMuted(this.soundEngine.getIsMuted());
+    this.music.setVisible(!document.hidden);
+    // Kept on user gestures, rather than starting media during page load.
+    document.addEventListener('pointerdown', () => { void this.music.activate(); }, { passive: true });
+    document.addEventListener('keydown', event => { if (!event.repeat) void this.music.activate(); });
+    document.addEventListener('visibilitychange', () => this.music.setVisible(!document.hidden));
     this.updateSoundIcons();
 
     this.particles = new ParticleSystem();
@@ -154,8 +162,42 @@ class AccretionGame {
     this.btnSound.addEventListener('click', () => this.toggleSound());
     this.btnReset.addEventListener('click', () => this.restartGame());
     this.btnRestart.addEventListener('click', () => this.restartGame());
-    this.btnDeployTouch.addEventListener('click', () => this.launchCore());
     this.btnFluxPulse.addEventListener('click', () => this.triggerFluxPulse());
+    const eyeTracking = document.getElementById('eye-tracking') as HTMLInputElement;
+    eyeTracking.checked = localStorage.getItem('slime_eye_tracking') !== 'false';
+    this.renderer.setEyeTracking(eyeTracking.checked);
+    eyeTracking.addEventListener('change', () => {
+      localStorage.setItem('slime_eye_tracking', String(eyeTracking.checked));
+      this.renderer.setEyeTracking(eyeTracking.checked);
+    });
+    const musicEnabled = document.getElementById('music-enabled') as HTMLInputElement;
+    const musicVolume = document.getElementById('music-volume') as HTMLInputElement;
+    musicEnabled.checked = this.music.getEnabled();
+    musicVolume.value = String(Math.round(this.music.getVolume() * 100));
+    musicEnabled.addEventListener('change', () => this.music.setEnabled(musicEnabled.checked));
+    musicVolume.addEventListener('input', () => this.music.setVolume(Number(musicVolume.value) / 100));
+    const menus = [...document.querySelectorAll<HTMLDetailsElement>('.hud-dropdown')];
+    for (const menu of menus) {
+      menu.addEventListener('toggle', () => {
+        if (menu.open) for (const other of menus) if (other !== menu) other.open = false;
+      });
+    }
+    document.addEventListener('pointerdown', event => {
+      for (const menu of menus) if (!menu.contains(event.target as Node)) menu.open = false;
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        for (const menu of menus) if (menu.open) {
+          menu.open = false;
+          menu.querySelector('summary')?.focus();
+        }
+        this.briefingModal.classList.add('hidden');
+      }
+    });
+    for (const id of ['btn-sound', 'btn-reset', 'btn-info']) {
+      const button = document.getElementById(id)!;
+      button.append(document.createTextNode(id === 'btn-sound' ? 'Sound' : id === 'btn-reset' ? 'Restart' : 'Guide'));
+    }
 
     this.btnInfo.addEventListener('click', () => {
       this.soundEngine.playClick();
@@ -199,16 +241,20 @@ class AccretionGame {
 
   private triggerFluxPulse(): void {
     if (!this.gameState.canTriggerFluxPulse()) return;
+    const pairCount = this.simulation.startPairBloom();
+    if (!pairCount) {
+      this.showFeedbackBanner('NO PAIRS YET', 'Charge saved — collect matching slimes');
+      return;
+    }
 
     if (this.gameState.consumeFluxPulse()) {
-      const invertedCount = this.simulation.invertAllPolarities();
       const cx = GAME_CONFIG.CENTER_X;
       const cy = GAME_CONFIG.CENTER_Y;
 
       this.particles.emitFluxPulseWave(cx, cy);
       this.soundEngine.playFluxPulse();
 
-      this.showFeedbackBanner('SINGULARITY PULSE', `Inverted ${invertedCount} Core Dipoles`);
+      this.showFeedbackBanner('PAIR BLOOM', `${pairCount} matching ${pairCount === 1 ? 'pair' : 'pairs'} coming together!`);
     }
   }
 
@@ -219,14 +265,14 @@ class AccretionGame {
     const tierDef = CORE_TIERS[event.resultTier] || CORE_TIERS[1];
     const particleColor = event.resultPolarity === 1 ? tierDef.colorBaseAlpha : tierDef.colorBaseBeta;
 
-    this.particles.emitMerge(event.x, event.y, particleColor, isResonant);
+    this.particles.emitMerge(event.x, event.y, particleColor, isResonant || !!event.pairBloom);
     this.soundEngine.playMerge(event.resultTier, isResonant, this.gameState.getScore());
 
     const gainedText = `+${event.scoreGained}`;
     this.particles.addFloatingText(event.x, event.y - 8, gainedText, isResonant ? '#38bdf8' : '#fbbf24');
 
-    if (isResonant) {
-      this.showFeedbackBanner('RESONANT FUSION', `+${event.scoreGained} Energy | Cluster Implosion`);
+    if (isResonant && !event.pairBloom) {
+      this.showFeedbackBanner('SUN + MOON', `+${event.scoreGained} · Harmony bonus!`);
     }
   }
 
@@ -286,12 +332,13 @@ class AccretionGame {
   }
 
   private updateFluxUI(charge: number, isReady: boolean): void {
-    this.fluxBtnLabel.textContent = `FLUX ${Math.floor(charge)}%`;
+    this.fluxBtnLabel.textContent = isReady ? 'PAIR BLOOM' : `BLOOM ${Math.floor(charge)}%`;
     this.btnFluxPulse.disabled = !isReady;
 
     if (isReady) {
       this.btnFluxPulse.classList.add('ready');
-      this.fluxStatusText.textContent = 'READY (SPACE)';
+      const pairs = this.simulation?.getPairBloomCount() || 0;
+      this.fluxStatusText.textContent = pairs ? `${pairs} ${pairs === 1 ? 'PAIR' : 'PAIRS'} · SPACE` : 'COLLECT A PAIR';
       this.fluxStatusText.style.color = 'var(--color-accent)';
     } else {
       this.btnFluxPulse.classList.remove('ready');
@@ -319,10 +366,10 @@ class AccretionGame {
 
   private updateNextCoreUI(_ct: number, _cp: Polarity, _nt: number, nextPolarity: Polarity): void {
     if (nextPolarity === 1) {
-      this.nextPolarityBadge.textContent = '+ALPHA';
+      this.nextPolarityBadge.textContent = '☀ SUN';
       this.nextPolarityBadge.className = 'polarity-badge positive';
     } else {
-      this.nextPolarityBadge.textContent = '−BETA';
+      this.nextPolarityBadge.textContent = '☾ MOON';
       this.nextPolarityBadge.className = 'polarity-badge negative';
     }
   }
@@ -349,12 +396,14 @@ class AccretionGame {
     this.soundEngine.playClick();
     this.gameoverModal.classList.add('hidden');
     this.particles.clear();
+    this.feedbackBanner.classList.add('hidden');
     this.simulation.reset();
     this.gameState.reset(seed);
   }
 
   private toggleSound(): void {
     const isMuted = this.soundEngine.toggleMuted();
+    this.music.setMuted(isMuted);
     this.updateSoundIcons();
     if (!isMuted) {
       this.soundEngine.playClick();
@@ -380,9 +429,12 @@ class AccretionGame {
     const dt = Math.min(time - this.lastTime, 50);
     this.lastTime = time;
 
-    this.simulation.step(dt);
-    this.gameState.update(dt);
-    this.particles.update(dt);
+    if (this.gameState.getStatus() !== 'GAMEOVER' && this.briefingModal.classList.contains('hidden') && !document.querySelector('.hud-dropdown[open]')) {
+      this.simulation.step(dt);
+      this.gameState.update(dt);
+      this.particles.update(dt);
+    }
+    this.updateFluxUI(this.gameState.getFluxCharge(), this.gameState.canTriggerFluxPulse());
 
     this.renderer.render(this.gameState, this.simulation, this.particles, dt);
 

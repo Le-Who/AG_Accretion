@@ -15,6 +15,7 @@ export interface SimulationCallbacks {
 }
 
 interface PendingMerge {
+  pairBloom?: boolean;
   entityA: AccretionEntity;
   entityB: AccretionEntity;
   bodyA: Matter.Body;
@@ -27,6 +28,20 @@ interface PendingCentralAbsorption {
 }
 
 export class PhysicsSimulation {
+  private previousPoses = new Map<number, { x: number; y: number; angle: number }>();
+
+  /** Rendering only: physics remains at its fixed 60Hz step and original speed. */
+  public getRenderPose(bodyId: number): { x: number; y: number; angle: number } | undefined {
+    const body = this.bodies.get(bodyId);
+    if (!body) return undefined;
+    const previous = this.previousPoses.get(bodyId);
+    if (!previous || Math.hypot(body.position.x - previous.x, body.position.y - previous.y) > 80) {
+      return { ...body.position, angle: body.angle };
+    }
+    const alpha = Math.min(1, this.accumulator / GAME_CONFIG.FIXED_TIMESTEP_MS);
+    return { x: previous.x + (body.position.x - previous.x) * alpha, y: previous.y + (body.position.y - previous.y) * alpha, angle: previous.angle + (body.angle - previous.angle) * alpha };
+  }
+  private bloomPairs: Array<{ merge: PendingMerge; fromA: Matter.Vector; fromB: Matter.Vector; target: Matter.Vector; elapsed: number }> = [];
   private engine: Matter.Engine;
   private world: Matter.World;
   private entities = new Map<number, AccretionEntity>();
@@ -96,22 +111,29 @@ export class PhysicsSimulation {
   }
 
   private handleCollisions(pairs: Matter.Pair[]): void {
-    let maxSpeed = 0;
 
     for (let i = 0; i < pairs.length; i++) {
       const pair = pairs[i];
       const bodyA = pair.bodyA;
       const bodyB = pair.bodyB;
 
-      const speedA = Matter.Vector.magnitude(bodyA.velocity);
-      const speedB = Matter.Vector.magnitude(bodyB.velocity);
-      const relSpeed = Math.abs(speedA - speedB);
-      if (relSpeed > maxSpeed) maxSpeed = relSpeed;
+      const relSpeed = Matter.Vector.magnitude(Matter.Vector.sub(bodyA.velocity, bodyB.velocity));
 
       const entityA = this.entities.get(bodyA.id);
       const entityB = this.entities.get(bodyB.id);
 
       if (!entityA || !entityB) continue;
+      if (!entityA.isMerging && !entityB.isMerging && relSpeed > .4) {
+        const dx = bodyB.position.x - bodyA.position.x;
+        const dy = bodyB.position.y - bodyA.position.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        this.callbacks.onCollisionImpact(Math.min(relSpeed / 5, 1), {
+          bodyAId: entityA.isCentralCore ? -1 : bodyA.id,
+          bodyBId: entityB.isCentralCore ? -1 : bodyB.id,
+          normalX: dx / dist,
+          normalY: dy / dist
+        });
+      }
 
       // Check if one of the bodies is the Central Nucleus
       const isACentral = entityA.isCentralCore === true;
@@ -151,18 +173,6 @@ export class PhysicsSimulation {
             bodyB
           });
         }
-      const dx = bodyB.position.x - bodyA.position.x;
-      const dy = bodyB.position.y - bodyA.position.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-
-      if (relSpeed > 0.4) {
-        this.callbacks.onCollisionImpact(Math.min(relSpeed / 5.0, 1.0), {
-          bodyAId: bodyA.id,
-          bodyBId: bodyB.id,
-          normalX: dx / dist,
-          normalY: dy / dist
-        });
-      }
     }
   }
 }
@@ -238,6 +248,53 @@ export class PhysicsSimulation {
     return invertedCount;
   }
 
+  public getPairBloomCount(): number {
+    if (this.bloomPairs.length) return 0;
+    const counts = new Map<number, number>();
+    for (const e of this.entities.values()) {
+      if (!e.isCentralCore && !e.isMerging && e.tier < MAX_TIER) counts.set(e.tier, (counts.get(e.tier) || 0) + 1);
+    }
+    return [...counts.values()].reduce((sum, n) => sum + Math.floor(n / 2), 0);
+  }
+
+  public startPairBloom(): number {
+    if (this.bloomPairs.length) return 0;
+    const candidates = [...this.entities.values()].filter(e => !e.isCentralCore && !e.isMerging && e.tier < MAX_TIER);
+    for (const a of candidates) {
+      if (a.isMerging) continue;
+      const bodyA = this.bodies.get(a.bodyId)!;
+      const b = candidates.filter(e => e !== a && !e.isMerging && e.tier === a.tier)
+        .sort((u, v) => Matter.Vector.magnitudeSquared(Matter.Vector.sub(this.bodies.get(u.bodyId)!.position, bodyA.position)) - Matter.Vector.magnitudeSquared(Matter.Vector.sub(this.bodies.get(v.bodyId)!.position, bodyA.position)))[0];
+      if (!b) continue;
+      const bodyB = this.bodies.get(b.bodyId)!;
+      a.isMerging = b.isMerging = true;
+      bodyA.isSensor = bodyB.isSensor = true;
+      Matter.Body.setStatic(bodyA, true);
+      Matter.Body.setStatic(bodyB, true);
+      const mx = (bodyA.position.x + bodyB.position.x) / 2 - GAME_CONFIG.CENTER_X;
+      const my = (bodyA.position.y + bodyB.position.y) / 2 - GAME_CONFIG.CENTER_Y;
+      const angle = Math.hypot(mx, my) > 1 ? Math.atan2(my, mx) : Math.atan2(bodyA.position.y - GAME_CONFIG.CENTER_Y, bodyA.position.x - GAME_CONFIG.CENTER_X);
+      const r = CORE_TIERS[a.tier + 1].radius;
+      const distance = Math.max(this.centralEntity.radius + r + 6, Math.min(Math.hypot(mx, my), GAME_CONFIG.CONTAINMENT_PERIMETER_RADIUS - r - 12));
+      this.bloomPairs.push({ merge: { entityA: a, entityB: b, bodyA, bodyB, pairBloom: true }, fromA: { ...bodyA.position }, fromB: { ...bodyB.position }, target: { x: GAME_CONFIG.CENTER_X + Math.cos(angle) * distance, y: GAME_CONFIG.CENTER_Y + Math.sin(angle) * distance }, elapsed: 0 });
+    }
+    return this.bloomPairs.length;
+  }
+
+  private advancePairBloom(dt: number): void {
+    this.bloomPairs = this.bloomPairs.filter(pair => {
+      pair.elapsed += dt;
+      const t = Math.min(1, pair.elapsed / 650);
+      const ease = t * t * (3 - 2 * t);
+      for (const [body, from] of [[pair.merge.bodyA, pair.fromA], [pair.merge.bodyB, pair.fromB]] as const) {
+        Matter.Body.setPosition(body, { x: from.x + (pair.target.x - from.x) * ease, y: from.y + (pair.target.y - from.y) * ease });
+      }
+      if (t < 1) return true;
+      this.pendingMerges.push(pair.merge);
+      return false;
+    });
+  }
+
   public step(dtMs: number): void {
     const clampedDt = Math.min(dtMs, GAME_CONFIG.MAX_DELTA_ACCUMULATION_MS);
     this.accumulator += clampedDt;
@@ -246,6 +303,11 @@ export class PhysicsSimulation {
     let subSteps = 0;
 
     while (this.accumulator >= fixedStep && subSteps < GAME_CONFIG.MAX_SUB_STEPS) {
+      for (const [id, body] of this.bodies) {
+        const pose = this.previousPoses.get(id);
+        if (pose) { pose.x = body.position.x; pose.y = body.position.y; pose.angle = body.angle; }
+        else this.previousPoses.set(id, { ...body.position, angle: body.angle });
+      }
       // 1. Inward Central Gravity
       this.applyCentralGravity();
 
@@ -254,6 +316,7 @@ export class PhysicsSimulation {
 
       // 3. Update Matter.js
       Matter.Engine.update(this.engine, fixedStep);
+      this.advancePairBloom(fixedStep);
 
       // 4. Resolve Central Core Absorptions & Regular Merges
       this.resolveCentralAbsorptions();
@@ -267,6 +330,7 @@ export class PhysicsSimulation {
     }
 
     this.evaluateHazardPerimeter();
+    for (const id of this.previousPoses.keys()) if (!this.bodies.has(id)) this.previousPoses.delete(id);
   }
 
   private applyCentralGravity(): void {
@@ -436,6 +500,7 @@ export class PhysicsSimulation {
       this.bodies.delete(bodyB.id);
 
       const newEntity = this.spawnCore(midX, midY, nextTier, nextPolarity);
+      newEntity.mergeBorn = true;
       const newBody = this.bodies.get(newEntity.bodyId);
       if (newBody) {
         Matter.Body.setVelocity(newBody, { x: avgVx, y: avgVy });
@@ -451,6 +516,7 @@ export class PhysicsSimulation {
       const scoreGained = tierDef.scoreValue * (fusionType === 'RESONANT' ? GAME_CONFIG.RESONANT_SCORE_MULTIPLIER : 1.0);
 
       this.callbacks.onMerge({
+        pairBloom: merge.pairBloom,
         entityA,
         entityB,
         fusionType,
@@ -545,7 +611,7 @@ export class PhysicsSimulation {
     for (const [bodyId, body] of this.bodies.entries()) {
       if (bodyId === this.centralNucleus.id) continue;
       const entity = this.entities.get(bodyId);
-      if (!entity) continue;
+      if (!entity || entity.isMerging) continue;
 
       if (performance.now() - entity.spawnTime < 1400) continue;
 
@@ -582,6 +648,8 @@ export class PhysicsSimulation {
   }
 
   public reset(): void {
+    this.previousPoses.clear();
+    this.bloomPairs = [];
     this.pendingMerges = [];
     this.pendingCentralAbsorptions = [];
 

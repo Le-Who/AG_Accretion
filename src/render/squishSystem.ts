@@ -3,6 +3,7 @@ import { SlimeExpression } from './proceduralSlimeRenderer.js';
 import { AccretionEntity } from '../types.js';
 
 interface SlimeState {
+  popAge?: number;
   mesh: JellyMesh;
   blinkTimer: number;
   blinkDuration: number;
@@ -98,13 +99,12 @@ export class SquishSystem {
     // 4. Step active slimes
     for (const [bodyId, entity] of entities.entries()) {
       if (entity.isCentralCore) continue;
-      const state = this.slimes.get(bodyId) || {
-        mesh: this.getOrCreateMesh(bodyId, entity.radius),
-        blinkTimer: 2.0,
-        blinkDuration: 0.18,
-        isBlinking: false,
-        mouthOpen: false
-      };
+      if (!this.slimes.has(bodyId)) {
+        this.getOrCreateMesh(bodyId, entity.radius);
+        if (entity.mergeBorn) this.slimes.get(bodyId)!.popAge = 0;
+      }
+      const state = this.slimes.get(bodyId)!;
+      if (state.popAge !== undefined) state.popAge += dtSeconds;
 
       state.mesh.step(dtSeconds);
       this.updateBlink(state, dtSeconds);
@@ -155,20 +155,20 @@ export class SquishSystem {
     }
 
     return {
-      blinkProgress: state.isBlinking ? 1 : 0,
+      blinkProgress: this.blinkProgress(state),
       mouthOpen: state.mouthOpen,
-      squishScaleX: 1,
-      squishScaleY: 1,
+      squishScaleX: state.mesh.getAxisScale() * this.popScale(state),
+      squishScaleY: this.popScale(state) / state.mesh.getAxisScale(),
       rotation: 0
     };
   }
 
   public getQueenExpression(): SlimeExpression {
     return {
-      blinkProgress: this.queenState.isBlinking ? 1 : 0,
+      blinkProgress: this.blinkProgress(this.queenState),
       mouthOpen: this.queenState.mouthOpen,
-      squishScaleX: 1,
-      squishScaleY: 1,
+      squishScaleX: this.queenMesh.getAxisScale(),
+      squishScaleY: 1 / this.queenMesh.getAxisScale(),
       rotation: 0
     };
   }
@@ -178,5 +178,15 @@ export class SquishSystem {
     this.queenState.isBlinking = false;
     this.queenState.mouthOpen = false;
     this.queenState.blinkTimer = 2.0;
+  }
+
+  private blinkProgress(state: SlimeState): number {
+    return state.isBlinking ? Math.sin(Math.PI * Math.max(0, state.blinkTimer) / state.blinkDuration) : 0;
+  }
+
+  private popScale(state: SlimeState): number {
+    if (state.popAge === undefined || state.popAge >= .18) return 1;
+    const t = state.popAge / .18;
+    return 1 - .14 * Math.cos(t * Math.PI * 2) * (1 - t) * (1 - t);
   }
 }
