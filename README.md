@@ -243,6 +243,8 @@ AG_Accretion/
 
 ## 🚀 Getting Started & Development
 
+Contributors can use [AGENTS.md](AGENTS.md) to find task-specific guidance and [CODING_STANDARDS.md](CODING_STANDARDS.md) for code ownership, gameplay boundaries, and validation.
+
 ### Prerequisites
 - **Node.js**: v18.0.0 or higher
 - **npm**: v9.0.0 or higher
