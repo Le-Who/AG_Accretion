@@ -9,25 +9,45 @@
    npm run music:prepare -- "audio-source/My Song.mp3" my-song
    ```
 
-3. Add a title and the generated `.ogg` / `.m4a` source URLs to `src/audio/musicLibrary.ts`, following the first track.
-4. Commit the optimized files in `public/assets/music/` and the library change. Originals are not required by the build. The converter refuses overwriting existing files; use a new slug for a revised track.
+3. Add a title and the generated `.ogg` / `.m4a` source URLs to [musicLibrary.ts](../src/audio/musicLibrary.ts), following the first track.
+4. Commit the optimized files in `public/assets/music/` and the library change. Originals stay local and are not required by the build. [The converter](../scripts/optimize-music.mjs) owns encoding settings and refuses overwrites; use a new slug for a revised track.
+5. Verify both generated formats in the browser, including complete playback and playlist transitions, using the playback contract below.
 
-The library plays in order and repeats. A single track loops. Music starts after user interaction; no music request is made during initial page load. Opus is preferred; AAC is a compatibility/error fallback, not a second initial download. Settings provide an independent music checkbox and volume; the Sound button mutes both music and effects. Hidden tabs pause music, returning resumes it. A blocked play is retried on the next gesture; exhausted source errors stop retrying.
+## Playback contract
 
-`Garden of Floating Stars` was converted from the supplied 3,716,779-byte MP3 to 1,441,412-byte Opus (61.2% smaller) and 1,985,814-byte AAC. Both preserve stereo and the complete approximately 159.65-second track. Cover art and source metadata are removed; AAC places its index first for streaming. Original file preserved unchanged. Lossy transcoding trades some fidelity for transfer size; playback/decoding were verified, not a formal listening-quality study.
+[MusicEngine](../src/audio/musicEngine.ts) streams one media element, with activation and visibility wired in [main.ts](../src/main.ts). Keep loading gated by user interaction so initial page load makes no music request. Preserve independent persisted music enable/volume preferences and the Sound button's master mute for music and effects. Pause hidden tabs and resume eligible playback on return.
 
-## Visual-only changes
+Play the library in order and repeat; a single track loops. Prefer a supported encoding, with Opus before AAC when both are supported. Load alternate sources only on failure, retry blocked play on the next gesture, and stop source retries when candidates are exhausted.
 
-- Physics stays at 60 fixed steps per second; launch speed, gravity, cooldowns and the 650ms Pair Bloom duration are unchanged.
-- Render poses interpolate previous/current fixed-step positions, including Bloom movement. This adds at most one physics-step of display latency, not slower gameplay. Teleports and new bodies snap to valid current positions.
-- Existing jelly springs now drive bounded, volume-preserving squash/stretch. Merged bodies get a brief 180ms visual pop without delaying their collision or scoring. Blink transitions are continuous.
-- Confetti tumbles; evolution emits heart silhouettes. Frame-rate-independent damping makes particle travel consistent at 60/120Hz. All emitters share the hard 280-particle cap.
-- Body gradients/gloss are cached in up to 22 small textures, and the static nebula background is cached. Faces, badges and accessories stay dynamic. No full-screen blur or postprocessing pass was added.
+[Music regressions](../test/music.test.ts) cover gesture-gated loading, preferences, master mute, playlist/visibility, and bounded source fallback. In the browser, check initial network requests, real decoding of both formats, gesture activation, volume/master mute, tab hide/return, looping, and multi-track progression when applicable.
 
-## Verification
+## Visual contracts
 
-Run `npm test` and `npm run build`. Tests cover music preferences/mute/playlist/fallback, interpolation without physical motion changes, collision/squish integration, particle budget/frame-rate invariance, and previous gameplay regressions.
+### Simulation and display
 
-Local Chromium synthetic rendering measurement, same 35-body scene, 400 measured frames after 50 warm-up frames, DPR 1: median 1.8ms → 0.7ms, p95 4.9ms → 2.9ms. This measures command submission on this machine, not universal GPU or mobile FPS; browser scheduling creates noisy outliers. Browser checks also verified real Opus/AAC playback, no initial music request, volume/mute, and looping.
+Keep physics on the configured fixed step in [simulation](../src/physics/simulation.ts). Use `getRenderPose` for display interpolation, including Bloom movement; displayed positions stay separate from physical positions. New bodies and teleports render at valid current poses. Visual polish preserves launch speed, gravity, cooldowns, and Bloom timing from their owning sources.
 
-Browser captures and local benchmark scripts remain under ignored `output/playwright/`; runtime tools, browser logs, builds, secrets and audio masters are excluded by `.gitignore`. Shipping music and source/tests remain versionable.
+[Renderer](../src/render/renderer.ts) consumes those poses. [SquishSystem](../src/render/squishSystem.ts) drives bounded, volume-preserving squash/stretch from jelly springs; merge pop and continuous blinks remain visual and leave collision/scoring timing intact. [Gaze](../src/render/gaze.ts) converts the target into clamped local face coordinates, returning neutral gaze when disabled or the pointer is absent.
+
+### Particles and rendering cost
+
+Every emitter in [ParticleSystem](../src/render/particleSystem.ts) shares its hard particle budget. Keep travel and damping independent of frame rate, reclaim expired effects, and preserve distinct tumbling confetti and heart silhouettes.
+
+Reuse cached body gradients/gloss in [proceduralSlimeRenderer](../src/render/proceduralSlimeRenderer.ts) and the static nebula background in Renderer, while faces, badges, and accessories remain dynamic. Measure changed rendering cost with the same scene and device conditions; report submission timing separately from GPU work or observed FPS.
+
+### Visual assets
+
+Trace the active consumer before replacing visual assets. The current Renderer calls ProceduralSlimeRenderer directly; [AssetManager](../src/render/assetManager.ts) can load `public/assets/slimes/` sprites but is unreferenced by the live renderer. A sprite replacement needs an explicit integration path and browser verification that the changed art appears in the intended canvas and previews. Use the visual contracts and validation in this section for that path.
+
+### Visual validation
+
+- [Motion regressions](../test/visual-motion.test.ts): interpolation without physical displacement, collision impacts, and bounded volume-preserving squish.
+- [Gaze regressions](../test/gaze.test.ts): neutral gaze, local coordinates, and clamping.
+- [Particle regressions](../test/particles.test.ts): shared budget, frame-rate invariance, distinct effects, and expiry.
+- Browser checks: spawn/teleport poses, Bloom travel, collision squish, merge pop, blinks/gaze, and stacked particle bursts.
+
+## Historical measurements
+
+`Garden of Floating Stars` was converted from the supplied 3,716,779-byte MP3 to 1,441,412-byte Opus (61.2% smaller) and 1,985,814-byte AAC, preserving stereo and the approximately 159.65-second track. Cover art and source metadata were removed; AAC placed its index first for streaming. The original was preserved unchanged. Playback/decoding were verified; this was not a formal listening-quality study.
+
+An earlier local Chromium measurement used the same 35-body scene, 400 measured frames after 50 warm-up frames, DPR 1: median submission time 1.8ms → 0.7ms, p95 4.9ms → 2.9ms. This describes that machine and revision, not universal GPU or mobile FPS; browser scheduling produced noisy outliers.

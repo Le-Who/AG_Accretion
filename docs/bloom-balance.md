@@ -1,19 +1,39 @@
 # Pair Bloom safety and balance
 
-## Root cause
+## Gameplay contracts
 
-Previously every pair chose its landing point independently, checking only the Queen and perimeter. Multiple results could overlap each other or bystanders. Collision separation and ordinary merge shockwaves then displaced neighbouring slimes. The old geometry tests covered a single slime beside the Queen, not competing landing sites.
+### Atomic pair resolution
 
-## Resolution
+In [PhysicsSimulation](../src/physics/simulation.ts), reserve nonoverlapping landing sites before animation begins, accounting for the Queen, perimeter clearance, bystanders, and every accepted result. `safeBloomTarget` owns the clearance and search values. Pairs without a safe site remain dynamic and playable for a later activation.
 
-Bloom now searches deterministic, nonoverlapping landing sites with 12px perimeter clearance, considering bystanders and already reserved results. A pair without a safe site stays playable for a later activation. No successful pair means no charge consumption.
+Hold bystander physics and player launches through the atomic animation so reserved sites stay available. Hold danger, combo, and cooldown time in [GameState](../src/core/gameState.ts), then resume their remaining values. Continue detecting overflow; preserve the hazard rather than clearing it on activation. [main.ts](../src/main.ts) spends charge only after `startPairBloom` accepts at least one action.
 
-The existing 650ms animation is atomic: bystander physics and launches are held, so reserved sites cannot become occupied during travel. This invariant replaces the need to relocate results at the last frame. Danger/combo/cooldown time is held with physics and resumes with the same remaining values; overflow is still detected, not cleared. Bloom and its immediate merge descendants emit visual effects but no physical shockwaves.
+Collect matching-tier pairs once, leaving unmatched slimes available; maximum-tier slimes use the ascension path below. Reset cancels in-flight pairs without delayed merges.
 
-Charge: ordinary merge +6%, Sun/Moon merge +10%, Queen evolution +15%. Bloom results and their subsequent automatic chain do not recharge the ability until the player launches again. The pill shows actual charge with a 400ms visual fill transition; readiness depends on actual charge, not animation time.
+### Charge and origin
 
-A maximum-level Queen absorbs at most one maximum-level slime per activation and gains +0.5× to the run score multiplier. Her radius and tier do not increase. The bonus multiplies merge/evolution score alongside temporary combo and resets on restart. It is visible in score details.
+Carry `bloomOrigin` through automatic merges and into Queen-evolution events. Bloom results and these descendants emit visual effects without physical shockwaves or ability charge until the next player launch clears their origin. Ordinary Queen growth still separates bodies from the expanded nucleus.
 
-Desktop uses symmetric grid tracks: the actual Next canvas, rather than its label group, is centered. Harmony is left; score, Bloom, settings are right. Mobile layout is preserved.
+Read charge rewards and readiness threshold from [configuration](../src/config.ts), and animation duration from `advancePairBloom` in simulation. The HUD uses actual charge for readiness; its fill transition is presentation only.
 
-Verification: regression tests cover reserved results, unmoved bystanders, blocked pairs remaining dynamic, persistent hazard, timer hold/resume, slower charge, no Bloom self-recharge, single-Titan absorption, scoring and restart. Browser checks cover 601/768/1024/1440px desktop centering, 390px mobile overflow and the full ascension/reset path. Late-game economy still warrants playtesting across complete runs; these are initial explicit tuning values, not analytics-derived targets.
+### Maximum-tier ascension
+
+A maximum-tier Queen absorbs at most one maximum-tier slime per activation while preserving her tier and radius. `GameState.handleAscension` owns the persistent run-multiplier increase. Apply that multiplier alongside temporary combo to merge and evolution scores, display it in score details, and reset it on restart.
+
+### Gameplay validation
+
+- [Bloom balance regressions](../test/bloom-balance.test.ts): reservations and unmoved bystanders, blocked pairs remaining dynamic, persistent overflow, danger-time hold/resume, self-charge suppression, single maximum-tier absorption, run scoring and restart.
+- [Bloom geometry regressions](../test/bloom.test.ts): room beside every Queen, launch-guide fit, pair selection, and in-flight reset.
+- Inspect the browser path from charged activation through blocked/accepted resolution, subsequent automatic merges and Queen evolution, the next player launch, and ascension/reset. Check combo/cooldown hold and actual-charge readiness through main and GameState; the listed tests do not exhaust these integration branches.
+
+The ascension/reset path was checked in earlier browser runs. Late-game economy still needs playtesting across complete runs; current tuning is not an analytics-derived target.
+
+## Presentation
+
+Desktop grid tracks center the actual Next canvas, with Harmony on the left and score, Bloom, and settings on the right. Preserve the mobile layout. The layout lives in [style.css](../src/style.css) and [index.html](../index.html), with HUD wiring in main.
+
+Earlier browser checks covered desktop centering at 601/768/1024/1440px and mobile overflow at 390px. These are historical checks, not a substitute for validating a changed layout.
+
+## Background
+
+The earlier implementation chose landing sites independently against only the Queen and perimeter. Results could overlap each other or bystanders, and ordinary merge shockwaves displaced neighbouring slimes. The atomic reservation contract addresses that failure.

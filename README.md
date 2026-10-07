@@ -19,7 +19,7 @@ A juicy, high-polish casual radial drop-and-merge game with **2.5D mathematical 
   - [1. 360° Radial Perimeter Launcher](#1-360-radial-perimeter-launcher)
   - [2. The Slime Queen & Evolution Loop](#2-the-slime-queen--evolution-loop)
   - [3. Sun & Moon Polarity Magnetism](#3-sun--moon-polarity-magnetism)
-  - [4. Rainbow Super Burst (Flux Pulse)](#4-rainbow-super-burst-flux-pulse)
+  - [4. Pair Bloom](#4-pair-bloom)
   - [5. Sanctuary Harmony & Perimeter Hazard](#5-sanctuary-harmony--perimeter-hazard)
 - [Complete Slime Hierarchy (Tiers 1–11)](#-complete-slime-hierarchy-tiers-111)
 - [Mathematical & Engineering Architecture](#-mathematical--engineering-architecture)
@@ -91,14 +91,13 @@ Every incoming slime is attuned to either **Sun Sparkle (+1)** or **Moon Frost (
 - **Pairwise Dipole Forces**: Slimes of identical polarity gently repel each other, while opposite polarities attract across space via an inverse-distance magnetic field.
 - **Harmonic Fusion (Sun + Moon)**:
   - Occurs when two matching-tier slimes with **opposite polarities** merge.
-  - Grants a **2.5× score bonus**, an inward gravitational implosion pulse that compacts the garden, and generates high **Flux Charge** (+28%).
+  - Grants a **2.5× score bonus**, an inward gravitational implosion pulse that compacts the garden, and charges **Pair Bloom**.
 - **Sweet Fusion (Same Polarity)**:
-  - Standard merge between identical polarities (+10% Flux Charge).
+  - Standard merge between identical polarities also charges Pair Bloom; current charge rewards live in [configuration](src/config.ts).
 
-### 4. Rainbow Super Burst (Flux Pulse)
-- Merging slimes charges the **Super Burst** capacitor.
-- At 100% charge, pressing <kbd>Space</kbd> or tapping the **BURST** button inverts the polarities of every dynamic slime on screen.
-- Repulsions flip to attractions, triggering thrilling chain-reaction cascades toward the Queen.
+### 4. Pair Bloom
+- Merges and Queen evolution charge **Pair Bloom**. At full charge, press <kbd>Space</kbd> or tap **PAIR BLOOM** to collect matching-tier pairs into safe landing sites.
+- See [Bloom safety and balance](docs/bloom-balance.md#gameplay-contracts) for blocked activations, atomic resolution, charge suppression, and maximum-tier Queen ascension.
 
 ### 5. Sanctuary Harmony & Perimeter Hazard
 - A starlight floral ring marks the **Containment Boundary** ($R = 255\text{px}$).
@@ -127,7 +126,7 @@ Every incoming slime is attuned to either **Sun Sparkle (+1)** or **Moon Frost (
 
 ## 🔬 Mathematical & Engineering Architecture
 
-The architecture decouples the deterministic physics simulation from a continuous procedural 2.5D visual deformation pipeline to maintain a locked **60 FPS** with 35+ dynamic bodies on canvas.
+The architecture decouples the fixed-step physics simulation from a continuous procedural 2.5D visual deformation pipeline to maintain a locked **60 FPS** with 35+ dynamic bodies on canvas.
 
 ```
 ┌───────────────────────────────────────────────────────────┐
@@ -176,12 +175,12 @@ Instead of costly multi-body soft-body meshes in Matter.js, each entity owns an 
   - Anticipation state: the Slime Queen opens her mouth wide in joyful excitement when an absorbable matching-tier slime drifts within $100\text{px}$.
 
 ### Procedural Harmonic Web Audio Synthesizer
-Built natively on the **Web Audio API** with zero external audio assets:
+Sound effects are synthesized natively on the **Web Audio API**. Background music streams optimized audio assets; see [music playback](docs/music-and-rendering.md#playback-contract) and [track preparation](docs/music-and-rendering.md#add-a-track).
 - Tuned to an ascending **Lydian / Pentatonic scale** across C4 to C6.
 - **Collisions**: High-frequency soft "plop" and marimba clinks scaled by impact momentum.
 - **Harmonic Merges**: Four-note ascending arpeggio chord with bell resonance.
 - **Queen Level-Up**: Sparkling brass-bell fanfare and glissando.
-- **Super Burst**: Dreamy cosmic whoosh followed by shimmering harmonic chimes.
+- **Pair Bloom**: Dreamy cosmic whoosh followed by shimmering harmonic chimes.
 
 ---
 
@@ -234,7 +233,7 @@ AG_Accretion/
 |:---|:---|:---:|
 | **Aim Launch Angle** | Move mouse / drag finger around orbit | — |
 | **Launch Slime** | Left Click / Tap "LAUNCH SLIME" | <kbd>&darr;</kbd> (Down Arrow) |
-| **Trigger Super Burst** | Tap "SUPER BURST" button | <kbd>Space</kbd> |
+| **Trigger Pair Bloom** | Tap "PAIR BLOOM" button | <kbd>Space</kbd> |
 | **Restart Sanctuary** | Click Reset icon / Tap "PLAY AGAIN" | <kbd>R</kbd> |
 | **Toggle Audio** | Click Speaker icon | <kbd>M</kbd> |
 | **How to Play Guide** | Click Info icon | <kbd>?</kbd> |
@@ -242,6 +241,8 @@ AG_Accretion/
 ---
 
 ## 🚀 Getting Started & Development
+
+Contributors can use [AGENTS.md](AGENTS.md) to find task-specific guidance and [CODING_STANDARDS.md](CODING_STANDARDS.md) for code ownership, gameplay boundaries, and validation.
 
 ### Prerequisites
 - **Node.js**: v18.0.0 or higher
